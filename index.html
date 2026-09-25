@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiniela NFL - Semana R3 en Vivo</title>
+    <title>Quiniela NFL - Live Tracker</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -13,6 +13,7 @@
             --win-color: #22c55e;
             --live-color: #eab308;
             --border-color: #334155;
+            --pending-color: #94a3b8;
         }
 
         body {
@@ -24,14 +25,38 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1250px;
             margin: 0 auto;
         }
 
-        h1, h2 {
-            text-align: center;
-            color: var(--accent-color);
+        .header-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            margin: 0;
+            font-size: 1.8rem;
+        }
+
+        .refresh-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        .refresh-btn:hover {
+            background-color: var(--border-color);
         }
 
         .grid-container {
@@ -40,7 +65,7 @@
             gap: 20px;
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 950px) {
             .grid-container {
                 grid-template-columns: 1fr;
             }
@@ -54,46 +79,76 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
         }
 
-        /* Controles de Partido */
+        .panel h2 {
+            margin-top: 0;
+            color: var(--accent-color);
+            font-size: 1.3rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        /* Tarjetas de Partidos */
         .match-card {
             background: #0f172a;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 10px 14px;
+            padding: 12px;
             margin-bottom: 10px;
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
             align-items: center;
-            justify-content: space-between;
+            gap: 10px;
         }
 
-        .team-input {
+        .team {
             display: flex;
             align-items: center;
             gap: 8px;
             font-weight: bold;
-            width: 35%;
         }
 
-        .team-input input {
-            width: 45px;
-            padding: 5px;
-            text-align: center;
-            background: #1e293b;
+        .team.away {
+            justify-content: flex-start;
+        }
+
+        .team.home {
+            justify-content: flex-end;
+        }
+
+        .score {
+            background: var(--card-bg);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 1.1rem;
             border: 1px solid var(--border-color);
-            color: #fff;
+        }
+
+        .match-status-center {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
             border-radius: 4px;
             font-weight: bold;
+            text-transform: uppercase;
         }
 
-        .status-select {
-            background: #1e293b;
-            color: #fff;
-            border: 1px solid var(--border-color);
-            padding: 5px;
-            border-radius: 4px;
+        .badge-live { background-color: var(--live-color); color: #000; }
+        .badge-final { background-color: var(--win-color); color: #000; }
+        .badge-pending { background-color: var(--pending-color); color: #000; }
+
+        .time-detail {
+            font-size: 0.75rem;
+            color: #a0aec0;
         }
 
-        /* Leaderboard */
+        /* Tabla de Posiciones */
         .leaderboard-table {
             width: 100%;
             border-collapse: collapse;
@@ -109,20 +164,17 @@
         .leaderboard-table th {
             background-color: #0f172a;
             color: var(--accent-color);
-        }
-
-        .leaderboard-table tr {
-            transition: all 0.2s ease;
+            font-size: 0.85rem;
         }
 
         .leaderboard-table tr:hover {
-            background-color: #334155;
+            background-color: #2d3748;
         }
 
         .rank {
             font-weight: bold;
             color: var(--accent-color);
-            width: 40px;
+            width: 35px;
         }
 
         .player-name {
@@ -130,46 +182,62 @@
             font-weight: bold;
         }
 
-        .score-badge {
+        .badge-score {
             display: inline-block;
-            background-color: #38bdf8;
+            background-color: var(--accent-color);
             color: #0f172a;
             font-weight: bold;
-            padding: 3px 10px;
-            border-radius: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.9rem;
         }
 
-        .total-badge {
+        .badge-projected {
             display: inline-block;
-            background-color: #22c55e;
+            background-color: #a855f7;
+            color: #fff;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+        }
+
+        .badge-total {
+            display: inline-block;
+            background-color: var(--win-color);
             color: #0f172a;
             font-weight: bold;
-            padding: 3px 10px;
-            border-radius: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🏈 Quiniela NFL - Semana R3 (En Vivo)</h1>
+    <div class="header-status">
+        <h1>🏈 Quiniela NFL - Live Tracker</h1>
+        <button class="refresh-btn" onclick="fetchESPNLiveScores()">🔄 Actualizar Marcadores</button>
+    </div>
 
     <div class="grid-container">
-        <!-- Panel de Control de Partidos R3 -->
+        <!-- Panel de Partidos de la Semana -->
         <div class="panel">
-            <h2>Partidos Semana R3</h2>
-            <div id="matches-container"></div>
+            <h2>Partidos (Marcadores ESPN en Vivo)</h2>
+            <div id="matches-container">Cargando marcadores en vivo...</div>
         </div>
 
-        <!-- Tabla de Posiciones R3 -->
+        <!-- Tabla General de Posiciones -->
         <div class="panel">
-            <h2>Tabla General (R3 + Acumulado)</h2>
+            <h2>Tabla de Posiciones</h2>
             <table class="leaderboard-table">
                 <thead>
                     <tr>
                         <th>Pos</th>
                         <th style="text-align: left;">Jugador</th>
-                        <th>R3</th>
+                        <th>Week</th>
+                        <th>Projected</th>
                         <th>Total</th>
                     </tr>
                 </thead>
@@ -180,28 +248,16 @@
 </div>
 
 <script>
-    // Partidos de la Semana R3 (Todos inician en 0-0 PENDING)
-    const matches = [
-        { id: 1, home: 'ATL', away: 'GB', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 2, home: 'LAC', away: 'BUF', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 3, home: 'CAR', away: 'CLE', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 4, home: 'NYJ', away: 'DET', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 5, home: 'HOU', away: 'IND', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 6, home: 'NE', away: 'JAX', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 7, home: 'KC', away: 'MIA', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 8, home: 'TEN', away: 'NYG', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 9, home: 'CIN', away: 'PIT', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 10, home: 'SEA', away: 'WSH', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 11, home: 'ARI', away: 'SF', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 12, home: 'MIN', away: 'TB', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 13, home: 'BAL', away: 'DAL', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 14, home: 'LV', away: 'NO', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 15, home: 'LAR', away: 'DEN', homeScore: 0, awayScore: 0, status: 'PENDING' },
-        { id: 16, home: 'PHI', away: 'CHI', homeScore: 0, awayScore: 0, status: 'PENDING' }
+    // Partidos oficiales definidos para la Semana
+    const MATCH_DEFINITIONS = [
+        ["ATL", "GB"], ["LAC", "BUF"], ["CAR", "CLE"], ["NYJ", "DET"],
+        ["HOU", "IND"], ["NE", "JAX"], ["KC", "MIA"], ["TEN", "NYG"],
+        ["CIN", "PIT"], ["SEA", "WSH"], ["ARI", "SF"], ["MIN", "TB"],
+        ["BAL", "DAL"], ["LV", "NO"], ["LAR", "DEN"], ["PHI", "CHI"]
     ];
 
-    // Jugadores con sus puntos acumulados previos y sus selecciones para R3
-    const players = [
+    // Jugadores y selecciones de la quiniela
+    const PLAYERS = [
         { name: "GABRIEL", accumulated: 23, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
         { name: "GARA", accumulated: 23, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
         { name: "COCO", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
@@ -219,70 +275,149 @@
         { name: "HARRY", accumulated: 19, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } }
     ];
 
+    // Mapeo de nombres para homologación con ESPN
+    const TEAM_MAP = { "WSH": "WAS" };
+    function normalizeTeam(team) {
+        return TEAM_MAP[team] || team;
+    }
+
+    let liveMatchesState = [];
+
+    // Consulta en Vivo a la API de ESPN
+    async function fetchESPNLiveScores() {
+        try {
+            const response = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard");
+            const data = await response.json();
+            const events = data.events || [];
+
+            liveMatchesState = MATCH_DEFINITIONS.map((pair, index) => {
+                const awayTeam = normalizeTeam(pair[0]);
+                const homeTeam = normalizeTeam(pair[1]);
+
+                // Encontrar el evento coincidente en ESPN
+                const event = events.find(e => {
+                    const competitors = e.competitions[0].competitors;
+                    const teams = competitors.map(c => c.team.abbreviation);
+                    return teams.includes(awayTeam) && teams.includes(homeTeam);
+                });
+
+                if (event) {
+                    const comp = event.competitions[0];
+                    const homeComp = comp.competitors.find(c => c.team.abbreviation === homeTeam);
+                    const awayComp = comp.competitors.find(c => c.team.abbreviation === awayTeam);
+                    const statusType = event.status.type.name;
+
+                    let status = "PENDING";
+                    if (statusType === "STATUS_FINAL" || statusType === "STATUS_FULL_TIME") {
+                        status = "FINAL";
+                    } else if (statusType === "STATUS_IN_PROGRESS" || statusType === "STATUS_HALFTIME") {
+                        status = "LIVE";
+                    }
+
+                    return {
+                        id: index + 1,
+                        away: pair[0],
+                        home: pair[1],
+                        awayScore: parseInt(awayComp.score) || 0,
+                        homeScore: parseInt(homeComp.score) || 0,
+                        status: status,
+                        detail: event.status.type.shortDetail || ""
+                    };
+                } else {
+                    return {
+                        id: index + 1,
+                        away: pair[0],
+                        home: pair[1],
+                        awayScore: 0,
+                        homeScore: 0,
+                        status: "PENDING",
+                        detail: "No Iniciado"
+                    };
+                }
+            });
+
+            renderMatches();
+            calculateAndRenderLeaderboard();
+        } catch (error) {
+            console.error("Error al obtener datos de ESPN:", error);
+        }
+    }
+
+    // Renderizar la lista de partidos (Lectura única, sin edición)
     function renderMatches() {
         const container = document.getElementById('matches-container');
         container.innerHTML = '';
 
-        matches.forEach((m) => {
+        liveMatchesState.forEach(m => {
             const div = document.createElement('div');
             div.className = 'match-card';
+
+            let badgeClass = 'badge-pending';
+            let statusText = 'No Iniciado';
+            if (m.status === 'FINAL') {
+                badgeClass = 'badge-final';
+                statusText = 'Final';
+            } else if (m.status === 'LIVE') {
+                badgeClass = 'badge-live';
+                statusText = 'En Vivo';
+            }
+
             div.innerHTML = `
-                <div class="team-input">
-                    <span>${m.home}</span>
-                    <input type="number" value="${m.homeScore}" min="0" onchange="updateMatch(${m.id}, 'homeScore', this.value)">
-                </div>
-                <div>
-                    <select class="status-select" onchange="updateMatch(${m.id}, 'status', this.value)">
-                        <option value="PENDING" ${m.status === 'PENDING' ? 'selected' : ''}>No Iniciado</option>
-                        <option value="LIVE" ${m.status === 'LIVE' ? 'selected' : ''}>En Progreso</option>
-                        <option value="FINAL" ${m.status === 'FINAL' ? 'selected' : ''}>Final</option>
-                    </select>
-                </div>
-                <div class="team-input" style="justify-content: flex-end;">
-                    <input type="number" value="${m.awayScore}" min="0" onchange="updateMatch(${m.id}, 'awayScore', this.value)">
+                <div class="team away">
                     <span>${m.away}</span>
+                    <span class="score">${m.awayScore}</span>
+                </div>
+                <div class="match-status-center">
+                    <span class="badge ${badgeClass}">${statusText}</span>
+                    <span class="time-detail">${m.detail}</span>
+                </div>
+                <div class="team home">
+                    <span class="score">${m.homeScore}</span>
+                    <span>${m.home}</span>
                 </div>
             `;
             container.appendChild(div);
         });
     }
 
-    function updateMatch(id, field, value) {
-        const match = matches.find(m => m.id === id);
-        if (match) {
-            if (field === 'homeScore' || field === 'awayScore') {
-                match[field] = parseInt(value) || 0;
-            } else {
-                match[field] = value;
-            }
-            calculateAndRenderLeaderboard();
-        }
-    }
-
+    // Calcular Aciertos, Projected Score y Ordenar
     function calculateAndRenderLeaderboard() {
-        const playerScores = players.map(player => {
-            let weekScore = 0;
+        const playerScores = PLAYERS.map(player => {
+            let weekCurrent = 0;
+            let weekProjected = 0;
 
-            matches.forEach(m => {
+            liveMatchesState.forEach(m => {
                 const pickedTeam = player.picks[m.id];
-                if (!pickedTeam || m.status === 'PENDING') return;
+                if (!pickedTeam) return;
 
-                if (m.homeScore > m.awayScore && pickedTeam === m.home) {
-                    weekScore++;
-                } else if (m.awayScore > m.homeScore && pickedTeam === m.away) {
-                    weekScore++;
+                const isHomeWinner = m.homeScore > m.awayScore;
+                const isAwayWinner = m.awayScore > m.homeScore;
+                const isTie = m.homeScore === m.awayScore;
+
+                if (m.status === 'FINAL' || m.status === 'LIVE') {
+                    if ((isHomeWinner && pickedTeam === m.home) || (isAwayWinner && pickedTeam === m.away)) {
+                        weekCurrent++;
+                        weekProjected++;
+                    } else if (isTie && m.status === 'LIVE') {
+                        // Si está empatado en progreso, califica dentro del proyectado
+                        weekProjected++;
+                    }
+                } else if (m.status === 'PENDING') {
+                    // Partidos futuros suman al proyectado
+                    weekProjected++;
                 }
             });
 
             return {
                 name: player.name,
-                weekScore: weekScore,
-                totalScore: player.accumulated + weekScore
+                weekCurrent: weekCurrent,
+                weekProjected: weekProjected,
+                totalScore: player.accumulated + weekCurrent
             };
         });
 
-        // Ordenar por Total de puntos acumulados (y luego por puntos de la semana como desemptae)
-        playerScores.sort((a, b) => b.totalScore - a.totalScore || b.weekScore - a.weekScore);
+        // Ordenar dinámicamente de mayor a menor por Puntos en Vivo
+        playerScores.sort((a, b) => b.weekCurrent - a.weekCurrent || b.weekProjected - a.weekProjected);
 
         const tbody = document.getElementById('leaderboard-body');
         tbody.innerHTML = '';
@@ -292,15 +427,17 @@
             tr.innerHTML = `
                 <td class="rank">${index + 1}</td>
                 <td class="player-name">${ps.name}</td>
-                <td><span class="score-badge">${ps.weekScore}</span></td>
-                <td><span class="total-badge">${ps.totalScore}</span></td>
+                <td><span class="badge-score">${ps.weekCurrent}</span></td>
+                <td><span class="badge-projected">${ps.weekProjected}</span></td>
+                <td><span class="badge-total">${ps.totalScore}</span></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    renderMatches();
-    calculateAndRenderLeaderboard();
+    // Inicializar y configurar actualización automática cada 30 segundos
+    fetchESPNLiveScores();
+    setInterval(fetchESPNLiveScores, 30000);
 </script>
 
 </body>
