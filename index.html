@@ -266,7 +266,7 @@
         return (parseInt(parts[0]) || 0) + (parseInt(parts[1]) || 0);
     }
 
-    // Jugadores con Marcador Predicho de la Columna AX
+    // Jugadores con Marcador Predicho
     const PLAYERS = [
         { name: "GABRIEL", accumulated: 23, rawMNF: "34-27", mnfTotal: parseScoreTiebreaker("34-27"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
         { name: "GARA", accumulated: 23, rawMNF: "21-9", mnfTotal: parseScoreTiebreaker("21-9"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
@@ -290,7 +290,7 @@
 
     let liveMatchesState = [];
     let mnfProjectedTotalPoints = 44.5;
-    let lastStateHash = ""; // Guardará la firma del estado anterior
+    let lastStateHash = "";
 
     async function fetchESPNLiveScores(forceRefresh = false) {
         try {
@@ -332,7 +332,6 @@
                         }
                     }
 
-                    // Extraer marcador real o línea Over/Under del partido MNF
                     if (index + 1 === MNF_MATCH_ID) {
                         if (status === "LIVE" || status === "FINAL") {
                             mnfProjectedTotalPoints = (parseInt(homeComp.score) || 0) + (parseInt(awayComp.score) || 0);
@@ -371,10 +370,8 @@
                 }
             });
 
-            // Generar la firma única del estado actual de los partidos
             const currentStateHash = JSON.stringify(liveMatchesState.map(m => `${m.id}-${m.status}-${m.awayScore}-${m.homeScore}-${m.homeWinProb.toFixed(2)}`)) + `-${mnfProjectedTotalPoints}`;
 
-            // Solo re-renderizamos y simulamos si hubo un cambio real en los datos o si el usuario hizo clic en actualizar
             if (currentStateHash !== lastStateHash || forceRefresh) {
                 lastStateHash = currentStateHash;
                 renderMatches();
@@ -423,13 +420,11 @@
         });
     }
 
-    // Simulación Monte Carlo estocástica para desempate de MNF
     function runMonteCarloSimulations() {
         const numSimulations = 10000;
         const winCounts = new Array(PLAYERS.length).fill(0);
-        const stdDevMNF = 10.5; // Desviación estándar típica de puntos en la NFL
+        const stdDevMNF = 10.5;
 
-        // Helper Box-Muller para distribución normal
         function randomNormal(mean, std) {
             let u1 = Math.random();
             let u2 = Math.random();
@@ -439,7 +434,6 @@
         }
 
         for (let sim = 0; sim < numSimulations; sim++) {
-            // 1. Simular ganadores de partidos restantes
             const simWinners = {};
             liveMatchesState.forEach(m => {
                 if (m.status === 'FINAL') {
@@ -449,10 +443,8 @@
                 }
             });
 
-            // 2. Simular un marcador total realista del MNF en esta iteración
             const simulatedMNFTotal = randomNormal(mnfProjectedTotalPoints, stdDevMNF);
 
-            // 3. Evaluar aciertos de los jugadores
             let maxPoints = -1;
             const simScores = PLAYERS.map(player => {
                 let pts = 0;
@@ -463,13 +455,11 @@
                 return pts;
             });
 
-            // 4. Obtener empatados en primer lugar
             let tiedIndices = [];
             simScores.forEach((score, idx) => {
                 if (score === maxPoints) tiedIndices.push(idx);
             });
 
-            // 5. Romper el empate con la cercanía al MNF total simulado
             if (tiedIndices.length === 1) {
                 winCounts[tiedIndices[0]] += 1;
             } else {
@@ -492,11 +482,44 @@
             }
         }
 
-        return winCounts.map(count => ((count / numSimulations) * 100).toFixed(1));
+        return winCounts.map(count => (count / numSimulations) * 100);
+    }
+
+    // Método de los Mayores Residuos (Hare-Niemeyer) para garantizar suma exacta de 100%
+    function roundPercentagesTo100(numbers) {
+        const floatNumbers = numbers.map(n => parseFloat(n) || 0);
+        const sum = floatNumbers.reduce((acc, curr) => acc + curr, 0);
+
+        if (sum === 0) return floatNumbers.map(() => 0);
+
+        const normalized = floatNumbers.map(n => (n / sum) * 100);
+
+        const items = normalized.map((num, index) => {
+            const floorVal = Math.floor(num);
+            return {
+                index: index,
+                floorVal: floorVal,
+                remainder: num - floorVal
+            };
+        });
+
+        const currentSum = items.reduce((acc, item) => acc + item.floorVal, 0);
+        let remainderToDistribute = 100 - currentSum;
+
+        items.sort((a, b) => b.remainder - a.remainder);
+
+        for (let i = 0; i < remainderToDistribute; i++) {
+            items[i].floorVal += 1;
+        }
+
+        items.sort((a, b) => a.index - b.index);
+
+        return items.map(item => item.floorVal);
     }
 
     function calculateAndRenderLeaderboard() {
-        const winProbs = runMonteCarloSimulations();
+        const rawWinProbs = runMonteCarloSimulations();
+        const roundedWinProbs = roundPercentagesTo100(rawWinProbs);
 
         const playerScores = PLAYERS.map((player, idx) => {
             let weekCurrent = 0;
@@ -534,11 +557,10 @@
                 rawMNF: player.rawMNF,
                 weekCurrent: weekCurrent,
                 weekProjected: weekProjected,
-                winProb: winProbs[idx]
+                winProb: roundedWinProbs[idx]
             };
         });
 
-        // Ordenar por Puntos Actuales, Proyectados y Win Prob %
         playerScores.sort((a, b) => b.weekCurrent - a.weekCurrent || b.weekProjected - a.weekProjected || b.winProb - a.winProb);
 
         const tbody = document.getElementById('leaderboard-body');
