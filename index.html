@@ -87,7 +87,7 @@
             padding-bottom: 10px;
         }
 
-        /* Tarjetas de Partidos con Logos */
+        /* Tarjetas de Partidos */
         .match-card {
             background: #0f172a;
             border: 1px solid var(--border-color);
@@ -107,13 +107,8 @@
             font-weight: bold;
         }
 
-        .team.away {
-            justify-content: flex-start;
-        }
-
-        .team.home {
-            justify-content: flex-end;
-        }
+        .team.away { justify-content: flex-start; }
+        .team.home { justify-content: flex-end; }
 
         .team-logo {
             width: 32px;
@@ -174,9 +169,7 @@
             font-size: 0.85rem;
         }
 
-        .leaderboard-table tr:hover {
-            background-color: #2d3748;
-        }
+        .leaderboard-table tr:hover { background-color: #2d3748; }
 
         .rank {
             font-weight: bold;
@@ -229,7 +222,7 @@
     </div>
 
     <div class="grid-container">
-        <!-- Panel de Partidos de la Semana -->
+        <!-- Panel de Partidos -->
         <div class="panel">
             <h2>Partidos (Marcadores ESPN en Vivo)</h2>
             <div id="matches-container">Cargando marcadores en vivo...</div>
@@ -243,6 +236,7 @@
                     <tr>
                         <th>Pos</th>
                         <th style="text-align: left;">Jugador</th>
+                        <th>MNF Tiebreaker</th>
                         <th>Week</th>
                         <th>Projected</th>
                         <th>Win Prob %</th>
@@ -255,7 +249,7 @@
 </div>
 
 <script>
-    // Partidos definidos para la Semana
+    // Partidos de la Semana (El partido #16 PHI vs CHI se considera el MNF de desempate)
     const MATCH_DEFINITIONS = [
         ["ATL", "GB"], ["LAC", "BUF"], ["CAR", "CLE"], ["NYJ", "DET"],
         ["HOU", "IND"], ["NE", "JAX"], ["KC", "MIA"], ["TEN", "NYG"],
@@ -263,31 +257,39 @@
         ["BAL", "DAL"], ["LV", "NO"], ["LAR", "DEN"], ["PHI", "CHI"]
     ];
 
-    // Jugadores y selecciones
+    const MNF_MATCH_ID = 16; // Partido 16 es el juego de desempate
+
+    // Función aux para convertir "34-27" a suma total (61)
+    function parseScoreTiebreaker(rawScore) {
+        if (!rawScore || !rawScore.includes('-')) return 40;
+        const parts = rawScore.split('-');
+        return (parseInt(parts[0]) || 0) + (parseInt(parts[1]) || 0);
+    }
+
+    // Jugadores con Marcador Predicho de la Columna AX
     const PLAYERS = [
-        { name: "GABRIEL", accumulated: 23, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "GARA", accumulated: 23, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
-        { name: "COCO", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "CHARLIE", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "CONTRERAS", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "OSCAR", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "JERRY", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CLE", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "PERUSI", accumulated: 21, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "NE", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "DEN", 16: "PHI" } },
-        { name: "MANUEL", accumulated: 21, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "GILBERTO", accumulated: 20, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "DAL", 14: "NO", 15: "DEN", 16: "PHI" } },
-        { name: "GUS", accumulated: 20, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
-        { name: "PARRA", accumulated: 20, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "CARLOS", accumulated: 19, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "DAL", 14: "NO", 15: "DEN", 16: "PHI" } },
-        { name: "ISMAEL", accumulated: 19, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
-        { name: "HARRY", accumulated: 19, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } }
+        { name: "GABRIEL", accumulated: 23, rawMNF: "34-27", mnfTotal: parseScoreTiebreaker("34-27"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "GARA", accumulated: 23, rawMNF: "21-9", mnfTotal: parseScoreTiebreaker("21-9"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
+        { name: "COCO", accumulated: 22, rawMNF: "35-10", mnfTotal: parseScoreTiebreaker("35-10"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "CHARLIE", accumulated: 22, rawMNF: "28-17", mnfTotal: parseScoreTiebreaker("28-17"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "CONTRERAS", accumulated: 22, rawMNF: "33-15", mnfTotal: parseScoreTiebreaker("33-15"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "OSCAR", accumulated: 22, rawMNF: "23-17", mnfTotal: parseScoreTiebreaker("23-17"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "JERRY", accumulated: 22, rawMNF: "30-10", mnfTotal: parseScoreTiebreaker("30-10"), picks: { 1: "GB", 2: "BUF", 3: "CLE", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "PERUSI", accumulated: 21, rawMNF: "28-14", mnfTotal: parseScoreTiebreaker("28-14"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "NE", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "DEN", 16: "PHI" } },
+        { name: "MANUEL", accumulated: 21, rawMNF: "24-20", mnfTotal: parseScoreTiebreaker("24-20"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "GILBERTO", accumulated: 20, rawMNF: "27-17", mnfTotal: parseScoreTiebreaker("27-17"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "DAL", 14: "NO", 15: "DEN", 16: "PHI" } },
+        { name: "GUS", accumulated: 20, rawMNF: "38-14", mnfTotal: parseScoreTiebreaker("38-14"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
+        { name: "PARRA", accumulated: 20, rawMNF: "30-16", mnfTotal: parseScoreTiebreaker("30-16"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "CARLOS", accumulated: 19, rawMNF: "27-17", mnfTotal: parseScoreTiebreaker("27-17"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "DAL", 14: "NO", 15: "DEN", 16: "PHI" } },
+        { name: "ISMAEL", accumulated: 19, rawMNF: "28-14", mnfTotal: parseScoreTiebreaker("28-14"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "HARRY", accumulated: 19, rawMNF: "14-21", mnfTotal: parseScoreTiebreaker("14-21"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } }
     ];
 
     const TEAM_MAP = { "WSH": "WAS" };
-    function normalizeTeam(team) {
-        return TEAM_MAP[team] || team;
-    }
+    function normalizeTeam(team) { return TEAM_MAP[team] || team; }
 
     let liveMatchesState = [];
+    let mnfProjectedTotalPoints = 44.5; // Valor por defecto si no hay overUnder de ESPN
 
     async function fetchESPNLiveScores() {
         try {
@@ -318,7 +320,6 @@
                         status = "LIVE";
                     }
 
-                    // Extraer probabilidad de victoria del equipo local (homeWinProb entre 0.0 y 1.0)
                     let homeWinProb = 0.5;
                     if (status === "FINAL") {
                         homeWinProb = (parseInt(homeComp.score) > parseInt(awayComp.score)) ? 1.0 : 0.0;
@@ -330,7 +331,14 @@
                         }
                     }
 
-                    let projectedWinner = homeWinProb >= 0.5 ? pair[1] : pair[0];
+                    // Si es el partido MNF, extraer la línea Over/Under de ESPN
+                    if (index + 1 === MNF_MATCH_ID) {
+                        if (status === "LIVE" || status === "FINAL") {
+                            mnfProjectedTotalPoints = (parseInt(homeComp.score) || 0) + (parseInt(awayComp.score) || 0);
+                        } else if (comp.odds && comp.odds.length > 0 && comp.odds[0].overUnder) {
+                            mnfProjectedTotalPoints = parseFloat(comp.odds[0].overUnder);
+                        }
+                    }
 
                     return {
                         id: index + 1,
@@ -342,7 +350,7 @@
                         homeLogo: homeComp.team.logo,
                         status: status,
                         detail: event.status.type.shortDetail || "",
-                        projectedWinner: projectedWinner,
+                        projectedWinner: homeWinProb >= 0.5 ? pair[1] : pair[0],
                         homeWinProb: homeWinProb
                     };
                 } else {
@@ -407,24 +415,21 @@
         });
     }
 
-    // Simulación Monte Carlo (10,000 iteraciones) para la probabilidad de victoria
+    // Simulación Monte Carlo aplicando Desempate por MNF (Cercanía a la línea Over/Under)
     function runMonteCarloSimulations() {
         const numSimulations = 10000;
         const winCounts = new Array(PLAYERS.length).fill(0);
 
         for (let sim = 0; sim < numSimulations; sim++) {
-            // Generar un escenario posible basado en la probabilidad de cada partido
             const simWinners = {};
             liveMatchesState.forEach(m => {
                 if (m.status === 'FINAL') {
                     simWinners[m.id] = (m.homeScore > m.awayScore) ? m.home : m.away;
                 } else {
-                    // Simular resultado según la probabilidad de ESPN
                     simWinners[m.id] = (Math.random() < m.homeWinProb) ? m.home : m.away;
                 }
             });
 
-            // Calcular aciertos de cada jugador en esta simulación
             let maxPoints = -1;
             const simScores = PLAYERS.map(player => {
                 let pts = 0;
@@ -435,15 +440,32 @@
                 return pts;
             });
 
-            // Contar ganadores de la simulación (repartiendo en caso de empate)
-            const winners = [];
+            // Romper empates usando la diferencia absoluta con la proyección de ESPN para el MNF
+            let tiedIndices = [];
             simScores.forEach((score, idx) => {
-                if (score === maxPoints) winners.push(idx);
+                if (score === maxPoints) tiedIndices.push(idx);
             });
 
-            winners.forEach(winnerIdx => {
-                winCounts[winnerIdx] += (1 / winners.length);
-            });
+            if (tiedIndices.length === 1) {
+                winCounts[tiedIndices[0]] += 1;
+            } else {
+                let minDiff = Infinity;
+                let tieWinners = [];
+
+                tiedIndices.forEach(idx => {
+                    const diff = Math.abs(PLAYERS[idx].mnfTotal - mnfProjectedTotalPoints);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        tieWinners = [idx];
+                    } else if (diff === minDiff) {
+                        tieWinners.push(idx);
+                    }
+                });
+
+                tieWinners.forEach(wIdx => {
+                    winCounts[wIdx] += (1 / tieWinners.length);
+                });
+            }
         }
 
         return winCounts.map(count => ((count / numSimulations) * 100).toFixed(1));
@@ -485,14 +507,15 @@
 
             return {
                 name: player.name,
+                rawMNF: player.rawMNF,
                 weekCurrent: weekCurrent,
                 weekProjected: weekProjected,
                 winProb: winProbs[idx]
             };
         });
 
-        // Ordenar dinámicamente por Puntos Actuales de la Semana, luego Proyectados
-        playerScores.sort((a, b) => b.weekCurrent - a.weekCurrent || b.weekProjected - a.weekProjected);
+        // Ordenar por Puntos Actuales, Proyectados y Win Prob %
+        playerScores.sort((a, b) => b.weekCurrent - a.weekCurrent || b.weekProjected - a.weekProjected || b.winProb - a.winProb);
 
         const tbody = document.getElementById('leaderboard-body');
         tbody.innerHTML = '';
@@ -502,6 +525,7 @@
             tr.innerHTML = `
                 <td class="rank">${index + 1}</td>
                 <td class="player-name">${ps.name}</td>
+                <td><strong style="color: #cbd5e1;">${ps.rawMNF}</strong></td>
                 <td><span class="badge-score">${ps.weekCurrent}</span></td>
                 <td><span class="badge-projected">${ps.weekProjected}</span></td>
                 <td><span class="badge-winprob">${ps.winProb}%</span></td>
