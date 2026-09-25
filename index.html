@@ -209,7 +209,7 @@
             font-size: 0.9rem;
         }
 
-        .badge-total {
+        .badge-winprob {
             display: inline-block;
             background-color: var(--win-color);
             color: #0f172a;
@@ -245,7 +245,7 @@
                         <th style="text-align: left;">Jugador</th>
                         <th>Week</th>
                         <th>Projected</th>
-                        <th>Total</th>
+                        <th>Win Prob %</th>
                     </tr>
                 </thead>
                 <tbody id="leaderboard-body"></tbody>
@@ -318,18 +318,19 @@
                         status = "LIVE";
                     }
 
-                    // Determinar el equipo favorito/proyectado según probabilidades de ESPN
-                    let projectedWinner = homeTeam;
-                    if (comp.situation && comp.situation.lastPlay && comp.situation.lastPlay.probability) {
-                        const homeProb = comp.situation.lastPlay.probability.homeWinPercentage || 50;
-                        projectedWinner = homeProb >= 50 ? pair[1] : pair[0];
-                    } else if (comp.odds && comp.odds.length > 0 && comp.odds[0].awayTeamOdds) {
-                        const homeFav = comp.odds[0].homeTeamOdds.favorite || false;
-                        projectedWinner = homeFav ? pair[1] : pair[0];
+                    // Extraer probabilidad de victoria del equipo local (homeWinProb entre 0.0 y 1.0)
+                    let homeWinProb = 0.5;
+                    if (status === "FINAL") {
+                        homeWinProb = (parseInt(homeComp.score) > parseInt(awayComp.score)) ? 1.0 : 0.0;
                     } else {
-                        // Por defecto asigna local si no hay momio publicado
-                        projectedWinner = pair[1];
+                        if (comp.situation && comp.situation.lastPlay && comp.situation.lastPlay.probability) {
+                            homeWinProb = (comp.situation.lastPlay.probability.homeWinPercentage || 50) / 100;
+                        } else if (comp.odds && comp.odds.length > 0 && comp.odds[0].homeTeamOdds) {
+                            homeWinProb = comp.odds[0].homeTeamOdds.favorite ? 0.6 : 0.4;
+                        }
                     }
+
+                    let projectedWinner = homeWinProb >= 0.5 ? pair[1] : pair[0];
 
                     return {
                         id: index + 1,
@@ -341,7 +342,8 @@
                         homeLogo: homeComp.team.logo,
                         status: status,
                         detail: event.status.type.shortDetail || "",
-                        projectedWinner: projectedWinner
+                        projectedWinner: projectedWinner,
+                        homeWinProb: homeWinProb
                     };
                 } else {
                     return {
@@ -354,7 +356,8 @@
                         homeLogo: `https://a.espncdn.com/i/teamlogos/nfl/500/${homeTeam}.png`,
                         status: "PENDING",
                         detail: "No Iniciado",
-                        projectedWinner: pair[1] // Local por defecto si no ha iniciado
+                        projectedWinner: pair[1],
+                        homeWinProb: 0.5
                     };
                 }
             });
@@ -404,8 +407,52 @@
         });
     }
 
+    // Simulación Monte Carlo (10,000 iteraciones) para la probabilidad de victoria
+    function runMonteCarloSimulations() {
+        const numSimulations = 10000;
+        const winCounts = new Array(PLAYERS.length).fill(0);
+
+        for (let sim = 0; sim < numSimulations; sim++) {
+            // Generar un escenario posible basado en la probabilidad de cada partido
+            const simWinners = {};
+            liveMatchesState.forEach(m => {
+                if (m.status === 'FINAL') {
+                    simWinners[m.id] = (m.homeScore > m.awayScore) ? m.home : m.away;
+                } else {
+                    // Simular resultado según la probabilidad de ESPN
+                    simWinners[m.id] = (Math.random() < m.homeWinProb) ? m.home : m.away;
+                }
+            });
+
+            // Calcular aciertos de cada jugador en esta simulación
+            let maxPoints = -1;
+            const simScores = PLAYERS.map(player => {
+                let pts = 0;
+                liveMatchesState.forEach(m => {
+                    if (player.picks[m.id] === simWinners[m.id]) pts++;
+                });
+                if (pts > maxPoints) maxPoints = pts;
+                return pts;
+            });
+
+            // Contar ganadores de la simulación (repartiendo en caso de empate)
+            const winners = [];
+            simScores.forEach((score, idx) => {
+                if (score === maxPoints) winners.push(idx);
+            });
+
+            winners.forEach(winnerIdx => {
+                winCounts[winnerIdx] += (1 / winners.length);
+            });
+        }
+
+        return winCounts.map(count => ((count / numSimulations) * 100).toFixed(1));
+    }
+
     function calculateAndRenderLeaderboard() {
-        const playerScores = PLAYERS.map(player => {
+        const winProbs = runMonteCarloSimulations();
+
+        const playerScores = PLAYERS.map((player, idx) => {
             let weekCurrent = 0;
             let weekProjected = 0;
 
@@ -427,11 +474,9 @@
                         weekCurrent++;
                         weekProjected++;
                     } else if (isTie && pickedTeam === m.projectedWinner) {
-                        // Empate en progreso: punto a quien eligió al favorito/proyectado de ESPN
                         weekProjected++;
                     }
                 } else if (m.status === 'PENDING') {
-                    // No iniciado: punto si eligió al favorito según las probabilidades de ESPN
                     if (pickedTeam === m.projectedWinner) {
                         weekProjected++;
                     }
@@ -442,11 +487,11 @@
                 name: player.name,
                 weekCurrent: weekCurrent,
                 weekProjected: weekProjected,
-                totalScore: player.accumulated + weekCurrent
+                winProb: winProbs[idx]
             };
         });
 
-        // Ordenar dinámicamente de mayor a menor por Puntos Actuales (y luego por Proyectados)
+        // Ordenar dinámicamente por Puntos Actuales de la Semana, luego Proyectados
         playerScores.sort((a, b) => b.weekCurrent - a.weekCurrent || b.weekProjected - a.weekProjected);
 
         const tbody = document.getElementById('leaderboard-body');
@@ -459,7 +504,7 @@
                 <td class="player-name">${ps.name}</td>
                 <td><span class="badge-score">${ps.weekCurrent}</span></td>
                 <td><span class="badge-projected">${ps.weekProjected}</span></td>
-                <td><span class="badge-total">${ps.totalScore}</span></td>
+                <td><span class="badge-winprob">${ps.winProb}%</span></td>
             `;
             tbody.appendChild(tr);
         });
