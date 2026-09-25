@@ -218,7 +218,7 @@
 <div class="container">
     <div class="header-status">
         <h1>🏈 Quiniela NFL - Live Tracker</h1>
-        <button class="refresh-btn" onclick="fetchESPNLiveScores()">🔄 Actualizar Marcadores</button>
+        <button class="refresh-btn" onclick="fetchESPNLiveScores(true)">🔄 Actualizar Marcadores</button>
     </div>
 
     <div class="grid-container">
@@ -289,9 +289,10 @@
     function normalizeTeam(team) { return TEAM_MAP[team] || team; }
 
     let liveMatchesState = [];
-    let mnfProjectedTotalPoints = 44.5; // Valor inicial por defecto si aún no carga el odds de ESPN
+    let mnfProjectedTotalPoints = 44.5;
+    let lastStateHash = ""; // Guardará la firma del estado anterior
 
-    async function fetchESPNLiveScores() {
+    async function fetchESPNLiveScores(forceRefresh = false) {
         try {
             const response = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard");
             const data = await response.json();
@@ -370,8 +371,15 @@
                 }
             });
 
-            renderMatches();
-            calculateAndRenderLeaderboard();
+            // Generar la firma única del estado actual de los partidos
+            const currentStateHash = JSON.stringify(liveMatchesState.map(m => `${m.id}-${m.status}-${m.awayScore}-${m.homeScore}-${m.homeWinProb.toFixed(2)}`)) + `-${mnfProjectedTotalPoints}`;
+
+            // Solo re-renderizamos y simulamos si hubo un cambio real en los datos o si el usuario hizo clic en actualizar
+            if (currentStateHash !== lastStateHash || forceRefresh) {
+                lastStateHash = currentStateHash;
+                renderMatches();
+                calculateAndRenderLeaderboard();
+            }
         } catch (error) {
             console.error("Error al obtener datos de ESPN:", error);
         }
@@ -551,7 +559,7 @@
     }
 
     fetchESPNLiveScores();
-    setInterval(fetchESPNLiveScores, 30000);
+    setInterval(() => fetchESPNLiveScores(false), 30000);
 </script>
 
 </body>
