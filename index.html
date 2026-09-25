@@ -249,7 +249,7 @@
 </div>
 
 <script>
-    // Partidos de la Semana (El partido #16 PHI vs CHI se considera el MNF de desempate)
+    // Partidos de la Semana (El partido #16 PHI vs CHI es el MNF de desempate)
     const MATCH_DEFINITIONS = [
         ["ATL", "GB"], ["LAC", "BUF"], ["CAR", "CLE"], ["NYJ", "DET"],
         ["HOU", "IND"], ["NE", "JAX"], ["KC", "MIA"], ["TEN", "NYG"],
@@ -259,7 +259,7 @@
 
     const MNF_MATCH_ID = 16; // Partido 16 es el juego de desempate
 
-    // Función aux para convertir "34-27" a suma total (61)
+    // Helper para parsear "34-27" a la suma total de puntos (61)
     function parseScoreTiebreaker(rawScore) {
         if (!rawScore || !rawScore.includes('-')) return 40;
         const parts = rawScore.split('-');
@@ -289,7 +289,7 @@
     function normalizeTeam(team) { return TEAM_MAP[team] || team; }
 
     let liveMatchesState = [];
-    let mnfProjectedTotalPoints = 44.5; // Valor por defecto si no hay overUnder de ESPN
+    let mnfProjectedTotalPoints = 44.5; // Valor inicial por defecto si aún no carga el odds de ESPN
 
     async function fetchESPNLiveScores() {
         try {
@@ -331,7 +331,7 @@
                         }
                     }
 
-                    // Si es el partido MNF, extraer la línea Over/Under de ESPN
+                    // Extraer marcador real o línea Over/Under del partido MNF
                     if (index + 1 === MNF_MATCH_ID) {
                         if (status === "LIVE" || status === "FINAL") {
                             mnfProjectedTotalPoints = (parseInt(homeComp.score) || 0) + (parseInt(awayComp.score) || 0);
@@ -415,12 +415,23 @@
         });
     }
 
-    // Simulación Monte Carlo aplicando Desempate por MNF (Cercanía a la línea Over/Under)
+    // Simulación Monte Carlo estocástica para desempate de MNF
     function runMonteCarloSimulations() {
         const numSimulations = 10000;
         const winCounts = new Array(PLAYERS.length).fill(0);
+        const stdDevMNF = 10.5; // Desviación estándar típica de puntos en la NFL
+
+        // Helper Box-Muller para distribución normal
+        function randomNormal(mean, std) {
+            let u1 = Math.random();
+            let u2 = Math.random();
+            while (u1 === 0) u1 = Math.random();
+            let z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+            return mean + z0 * std;
+        }
 
         for (let sim = 0; sim < numSimulations; sim++) {
+            // 1. Simular ganadores de partidos restantes
             const simWinners = {};
             liveMatchesState.forEach(m => {
                 if (m.status === 'FINAL') {
@@ -430,6 +441,10 @@
                 }
             });
 
+            // 2. Simular un marcador total realista del MNF en esta iteración
+            const simulatedMNFTotal = randomNormal(mnfProjectedTotalPoints, stdDevMNF);
+
+            // 3. Evaluar aciertos de los jugadores
             let maxPoints = -1;
             const simScores = PLAYERS.map(player => {
                 let pts = 0;
@@ -440,12 +455,13 @@
                 return pts;
             });
 
-            // Romper empates usando la diferencia absoluta con la proyección de ESPN para el MNF
+            // 4. Obtener empatados en primer lugar
             let tiedIndices = [];
             simScores.forEach((score, idx) => {
                 if (score === maxPoints) tiedIndices.push(idx);
             });
 
+            // 5. Romper el empate con la cercanía al MNF total simulado
             if (tiedIndices.length === 1) {
                 winCounts[tiedIndices[0]] += 1;
             } else {
@@ -453,7 +469,7 @@
                 let tieWinners = [];
 
                 tiedIndices.forEach(idx => {
-                    const diff = Math.abs(PLAYERS[idx].mnfTotal - mnfProjectedTotalPoints);
+                    const diff = Math.abs(PLAYERS[idx].mnfTotal - simulatedMNFTotal);
                     if (diff < minDiff) {
                         minDiff = diff;
                         tieWinners = [idx];
