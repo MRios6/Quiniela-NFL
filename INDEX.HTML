@@ -1,1 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiniela NFL - Semana R3 en Vivo</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #38bdf8;
+            --win-color: #22c55e;
+            --live-color: #eab308;
+            --border-color: #334155;
+        }
 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: var(--accent-color);
+            margin-bottom: 20px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Controles de Partido */
+        .match-card {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .team-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+            width: 35%;
+        }
+
+        .team-input input {
+            width: 45px;
+            padding: 5px;
+            text-align: center;
+            background: #1e293b;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status-select {
+            background: #1e293b;
+            color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        /* Leaderboard */
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .leaderboard-table th, .leaderboard-table td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .leaderboard-table th {
+            background-color: #0f172a;
+            color: var(--accent-color);
+        }
+
+        .leaderboard-table tr {
+            transition: all 0.2s ease;
+        }
+
+        .leaderboard-table tr:hover {
+            background-color: #334155;
+        }
+
+        .rank {
+            font-weight: bold;
+            color: var(--accent-color);
+            width: 40px;
+        }
+
+        .player-name {
+            text-align: left !important;
+            font-weight: bold;
+        }
+
+        .score-badge {
+            display: inline-block;
+            background-color: #38bdf8;
+            color: #0f172a;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+
+        .total-badge {
+            display: inline-block;
+            background-color: #22c55e;
+            color: #0f172a;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏈 Quiniela NFL - Semana R3 (En Vivo)</h1>
+
+    <div class="grid-container">
+        <!-- Panel de Control de Partidos R3 -->
+        <div class="panel">
+            <h2>Partidos Semana R3</h2>
+            <div id="matches-container"></div>
+        </div>
+
+        <!-- Tabla de Posiciones R3 -->
+        <div class="panel">
+            <h2>Tabla General (R3 + Acumulado)</h2>
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Pos</th>
+                        <th style="text-align: left;">Jugador</th>
+                        <th>R3</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Partidos de la Semana R3 (Todos inician en 0-0 PENDING)
+    const matches = [
+        { id: 1, home: 'ATL', away: 'GB', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 2, home: 'LAC', away: 'BUF', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 3, home: 'CAR', away: 'CLE', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 4, home: 'NYJ', away: 'DET', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 5, home: 'HOU', away: 'IND', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 6, home: 'NE', away: 'JAX', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 7, home: 'KC', away: 'MIA', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 8, home: 'TEN', away: 'NYG', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 9, home: 'CIN', away: 'PIT', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 10, home: 'SEA', away: 'WSH', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 11, home: 'ARI', away: 'SF', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 12, home: 'MIN', away: 'TB', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 13, home: 'BAL', away: 'DAL', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 14, home: 'LV', away: 'NO', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 15, home: 'LAR', away: 'DEN', homeScore: 0, awayScore: 0, status: 'PENDING' },
+        { id: 16, home: 'PHI', away: 'CHI', homeScore: 0, awayScore: 0, status: 'PENDING' }
+    ];
+
+    // Jugadores con sus puntos acumulados previos y sus selecciones para R3
+    const players = [
+        { name: "GABRIEL", accumulated: 23, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "GARA", accumulated: 23, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
+        { name: "COCO", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "CHARLIE", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "CONTRERAS", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "OSCAR", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "JERRY", accumulated: 22, picks: { 1: "GB", 2: "BUF", 3: "CLE", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "PERUSI", accumulated: 21, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "NE", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "DEN", 16: "PHI" } },
+        { name: "MANUEL", accumulated: 21, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "GILBERTO", accumulated: 20, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "DAL", 14: "NO", 15: "DEN", 16: "PHI" } },
+        { name: "GUS", accumulated: 20, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "IND", 6: "JAX", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "LV", 15: "LAR", 16: "PHI" } },
+        { name: "PARRA", accumulated: 20, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "CARLOS", accumulated: 19, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "JAX", 7: "KC", 8: "NYG", 9: "CIN", 10: "SEA", 11: "SF", 12: "MIN", 13: "DAL", 14: "NO", 15: "DEN", 16: "PHI" } },
+        { name: "ISMAEL", accumulated: 19, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } },
+        { name: "HARRY", accumulated: 19, picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } }
+    ];
+
+    function renderMatches() {
+        const container = document.getElementById('matches-container');
+        container.innerHTML = '';
+
+        matches.forEach((m) => {
+            const div = document.createElement('div');
+            div.className = 'match-card';
+            div.innerHTML = `
+                <div class="team-input">
+                    <span>${m.home}</span>
+                    <input type="number" value="${m.homeScore}" min="0" onchange="updateMatch(${m.id}, 'homeScore', this.value)">
+                </div>
+                <div>
+                    <select class="status-select" onchange="updateMatch(${m.id}, 'status', this.value)">
+                        <option value="PENDING" ${m.status === 'PENDING' ? 'selected' : ''}>No Iniciado</option>
+                        <option value="LIVE" ${m.status === 'LIVE' ? 'selected' : ''}>En Progreso</option>
+                        <option value="FINAL" ${m.status === 'FINAL' ? 'selected' : ''}>Final</option>
+                    </select>
+                </div>
+                <div class="team-input" style="justify-content: flex-end;">
+                    <input type="number" value="${m.awayScore}" min="0" onchange="updateMatch(${m.id}, 'awayScore', this.value)">
+                    <span>${m.away}</span>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function updateMatch(id, field, value) {
+        const match = matches.find(m => m.id === id);
+        if (match) {
+            if (field === 'homeScore' || field === 'awayScore') {
+                match[field] = parseInt(value) || 0;
+            } else {
+                match[field] = value;
+            }
+            calculateAndRenderLeaderboard();
+        }
+    }
+
+    function calculateAndRenderLeaderboard() {
+        const playerScores = players.map(player => {
+            let weekScore = 0;
+
+            matches.forEach(m => {
+                const pickedTeam = player.picks[m.id];
+                if (!pickedTeam || m.status === 'PENDING') return;
+
+                if (m.homeScore > m.awayScore && pickedTeam === m.home) {
+                    weekScore++;
+                } else if (m.awayScore > m.homeScore && pickedTeam === m.away) {
+                    weekScore++;
+                }
+            });
+
+            return {
+                name: player.name,
+                weekScore: weekScore,
+                totalScore: player.accumulated + weekScore
+            };
+        });
+
+        // Ordenar por Total de puntos acumulados (y luego por puntos de la semana como desemptae)
+        playerScores.sort((a, b) => b.totalScore - a.totalScore || b.weekScore - a.weekScore);
+
+        const tbody = document.getElementById('leaderboard-body');
+        tbody.innerHTML = '';
+
+        playerScores.forEach((ps, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="rank">${index + 1}</td>
+                <td class="player-name">${ps.name}</td>
+                <td><span class="score-badge">${ps.weekScore}</span></td>
+                <td><span class="total-badge">${ps.totalScore}</span></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    renderMatches();
+    calculateAndRenderLeaderboard();
+</script>
+
+</body>
+</html>
