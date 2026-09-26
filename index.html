@@ -92,12 +92,34 @@
             background: #0f172a;
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 10px 14px;
+            padding: 10px 14px 14px 14px;
             margin-bottom: 10px;
             display: grid;
             grid-template-columns: 1fr auto 1fr;
             align-items: center;
             gap: 10px;
+        }
+
+        .prob-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+
+        .prob-segment {
+            height: 100%;
+            transition: width 0.4s ease;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .prob-segment.away {
+            border-right: 1px solid rgba(255, 255, 255, 0.35);
         }
 
         .team {
@@ -238,7 +260,6 @@
                         <th style="text-align: left;">Jugador</th>
                         <th>MNF Tiebreaker</th>
                         <th>Week</th>
-                        <th>Projected</th>
                         <th>Win Prob %</th>
                     </tr>
                 </thead>
@@ -287,6 +308,43 @@
 
     const TEAM_MAP = { "WSH": "WAS" };
     function normalizeTeam(team) { return TEAM_MAP[team] || team; }
+
+    // Colores oficiales por equipo: fill = color primario, border = color secundario
+    const TEAM_COLORS = {
+        ARI: { fill: "#97233F", border: "#000000" }, ATL: { fill: "#A71930", border: "#000000" },
+        BAL: { fill: "#241773", border: "#000000" }, BUF: { fill: "#00338D", border: "#C60C30" },
+        CAR: { fill: "#0085CA", border: "#101820" }, CHI: { fill: "#0B162A", border: "#C83803" },
+        CIN: { fill: "#FB4F14", border: "#000000" }, CLE: { fill: "#311D00", border: "#FF3C00" },
+        DAL: { fill: "#003594", border: "#041E42" }, DEN: { fill: "#FB4F14", border: "#002244" },
+        DET: { fill: "#0076B6", border: "#B0B7BC" }, GB:  { fill: "#203731", border: "#FFB612" },
+        HOU: { fill: "#03202F", border: "#A71930" }, IND: { fill: "#002C5F", border: "#A2AAAD" },
+        JAX: { fill: "#101820", border: "#D7A22A" }, KC:  { fill: "#E31837", border: "#FFB81C" },
+        LAC: { fill: "#0080C6", border: "#FFC20E" }, LAR: { fill: "#003594", border: "#FFA300" },
+        LV:  { fill: "#000000", border: "#A5ACAF" }, MIA: { fill: "#008E97", border: "#FC4C02" },
+        MIN: { fill: "#4F2683", border: "#FFC62F" }, NE:  { fill: "#002244", border: "#C60C30" },
+        NO:  { fill: "#D3BC8D", border: "#101820" }, NYG: { fill: "#0B2265", border: "#A71930" },
+        NYJ: { fill: "#125740", border: "#000000" }, PHI: { fill: "#004C54", border: "#A5ACAF" },
+        PIT: { fill: "#FFB612", border: "#101820" }, SEA: { fill: "#002244", border: "#69BE28" },
+        SF:  { fill: "#AA0000", border: "#B3995D" }, TB:  { fill: "#D50A0A", border: "#34302B" },
+        TEN: { fill: "#0C2340", border: "#4B92DB" }, WSH: { fill: "#5A1414", border: "#FFB612" }
+    };
+    function teamColors(team) {
+        return TEAM_COLORS[team] || { fill: "#64748b", border: "#334155" };
+    }
+
+    // Brillo percibido de un color hex (0-255). Si el color secundario del equipo
+    // es demasiado oscuro para notarse sobre el fondo de la tarjeta, se usa un
+    // borde claro de respaldo para que el segmento siga siendo visible.
+    function perceivedBrightness(hex) {
+        const h = hex.replace('#', '');
+        const r = parseInt(h.substring(0, 2), 16);
+        const g = parseInt(h.substring(2, 4), 16);
+        const b = parseInt(h.substring(4, 6), 16);
+        return (0.299 * r + 0.587 * g + 0.114 * b);
+    }
+    function accentBorder(hex) {
+        return perceivedBrightness(hex) < 70 ? "rgba(226,232,240,0.85)" : hex;
+    }
 
     let liveMatchesState = [];
     let mnfProjectedTotalPoints = 44.5;
@@ -350,7 +408,6 @@
                         homeLogo: homeComp.team.logo,
                         status: status,
                         detail: event.status.type.shortDetail || "",
-                        projectedWinner: homeWinProb >= 0.5 ? pair[1] : pair[0],
                         homeWinProb: homeWinProb
                     };
                 } else {
@@ -364,7 +421,6 @@
                         homeLogo: `https://a.espncdn.com/i/teamlogos/nfl/500/${homeTeam}.png`,
                         status: "PENDING",
                         detail: "No Iniciado",
-                        projectedWinner: pair[1],
                         homeWinProb: 0.5
                     };
                 }
@@ -400,6 +456,11 @@
                 statusText = 'En Vivo';
             }
 
+            const awayC = teamColors(m.away);
+            const homeC = teamColors(m.home);
+            const homePct = (m.homeWinProb * 100).toFixed(1);
+            const awayPct = (100 - homePct).toFixed(1);
+
             div.innerHTML = `
                 <div class="team away">
                     <img class="team-logo" src="${m.awayLogo}" alt="${m.away}">
@@ -414,6 +475,10 @@
                     <span class="score">${m.homeScore}</span>
                     <span>${m.home}</span>
                     <img class="team-logo" src="${m.homeLogo}" alt="${m.home}">
+                </div>
+                <div class="prob-bar">
+                    <div class="prob-segment away" style="width:${awayPct}%; background:${awayC.fill}; border-bottom:3px solid ${accentBorder(awayC.border)};"></div>
+                    <div class="prob-segment home" style="width:${homePct}%; background:${homeC.fill}; border-bottom:3px solid ${accentBorder(homeC.border)};"></div>
                 </div>
             `;
             container.appendChild(div);
@@ -522,8 +587,8 @@
         const roundedWinProbs = roundPercentagesTo100(rawWinProbs);
 
         const playerScores = PLAYERS.map((player, idx) => {
-            let weekCurrent = 0;
-            let weekProjected = 0;
+            let weekCurrent = 0;   // aciertos reales bajo la regla de la quiniela (gana quien va arriba)
+            let weekExpected = 0;  // suma de P(gana el equipo elegido) en cada partido
 
             liveMatchesState.forEach(m => {
                 const pickedTeam = player.picks[m.id];
@@ -531,24 +596,23 @@
 
                 const isHomeWinner = m.homeScore > m.awayScore;
                 const isAwayWinner = m.awayScore > m.homeScore;
-                const isTie = m.homeScore === m.awayScore;
 
                 if (m.status === 'FINAL') {
-                    if ((isHomeWinner && pickedTeam === m.home) || (isAwayWinner && pickedTeam === m.away)) {
-                        weekCurrent++;
-                        weekProjected++;
+                    // Determinista: 1 si acertó al ganador, 0 si no (0 también en un empate final real)
+                    const won = (isHomeWinner && pickedTeam === m.home) || (isAwayWinner && pickedTeam === m.away);
+                    if (won) weekCurrent++;
+                    weekExpected += won ? 1 : 0;
+                } else {
+                    // LIVE o PENDING: se usa la probabilidad real (homeWinProb), sin forzar
+                    // un "favorito" cuando es un volado 50/50 sin información real.
+                    if (m.status === 'LIVE' && (isHomeWinner || isAwayWinner)) {
+                        // Regla de negocio original: si ya va en ventaja, se acredita el aciertos "real"
+                        if ((isHomeWinner && pickedTeam === m.home) || (isAwayWinner && pickedTeam === m.away)) {
+                            weekCurrent++;
+                        }
                     }
-                } else if (m.status === 'LIVE') {
-                    if ((isHomeWinner && pickedTeam === m.home) || (isAwayWinner && pickedTeam === m.away)) {
-                        weekCurrent++;
-                        weekProjected++;
-                    } else if (isTie && pickedTeam === m.projectedWinner) {
-                        weekProjected++;
-                    }
-                } else if (m.status === 'PENDING') {
-                    if (pickedTeam === m.projectedWinner) {
-                        weekProjected++;
-                    }
+                    const pWin = (pickedTeam === m.home) ? m.homeWinProb : (1 - m.homeWinProb);
+                    weekExpected += pWin;
                 }
             });
 
@@ -556,12 +620,15 @@
                 name: player.name,
                 rawMNF: player.rawMNF,
                 weekCurrent: weekCurrent,
-                weekProjected: weekProjected,
+                weekExpected: weekExpected,
+                rawWinProb: rawWinProbs[idx],
                 winProb: roundedWinProbs[idx]
             };
         });
 
-        playerScores.sort((a, b) => b.weekCurrent - a.weekCurrent || b.weekProjected - a.weekProjected || b.winProb - a.winProb);
+        // Orden principal: probabilidad real (sin redondear) de ganar la quiniela.
+        // Desempates: puntos esperados y luego aciertos reales del momento.
+        playerScores.sort((a, b) => b.rawWinProb - a.rawWinProb || b.weekExpected - a.weekExpected || b.weekCurrent - a.weekCurrent);
 
         const tbody = document.getElementById('leaderboard-body');
         tbody.innerHTML = '';
@@ -573,7 +640,6 @@
                 <td class="player-name">${ps.name}</td>
                 <td><strong style="color: #cbd5e1;">${ps.rawMNF}</strong></td>
                 <td><span class="badge-score">${ps.weekCurrent}</span></td>
-                <td><span class="badge-projected">${ps.weekProjected}</span></td>
                 <td><span class="badge-winprob">${ps.winProb}%</span></td>
             `;
             tbody.appendChild(tr);
