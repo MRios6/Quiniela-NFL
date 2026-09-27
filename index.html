@@ -249,7 +249,7 @@
                         <th>Pos</th>
                         <th style="text-align: left;">Jugador</th>
                         <th>MNF Tiebreaker</th>
-                        <th>Aciertos Reales</th>
+                        <th>Puntos</th>
                         <th>Puntos Proyectados</th>
                     </tr>
                 </thead>
@@ -293,8 +293,16 @@
         { name: "HARRY", accumulated: 19, rawMNF: "14-21", mnfTotal: parseScoreTiebreaker("14-21"), picks: { 1: "GB", 2: "BUF", 3: "CAR", 4: "DET", 5: "HOU", 6: "NE", 7: "KC", 8: "TEN", 9: "CIN", 10: "SEA", 11: "SF", 12: "TB", 13: "BAL", 14: "NO", 15: "LAR", 16: "PHI" } }
     ];
 
-    const TEAM_MAP = { "WSH": "WAS" };
-    function normalizeTeam(team) { return TEAM_MAP[team] || team; }
+    function normalizeTeam(team) {
+        if (!team) return "";
+        const u = team.toUpperCase();
+        if (u === "WAS" || u === "WSH") return "WSH";
+        return u;
+    }
+
+    function teamMatch(t1, t2) {
+        return normalizeTeam(t1) === normalizeTeam(t2);
+    }
 
     const TEAM_COLORS = {
         ARI: { fill: "#97233F", border: "#000000" }, ATL: { fill: "#A71930", border: "#000000" },
@@ -316,7 +324,7 @@
     };
 
     function teamColors(team) {
-        return TEAM_COLORS[team] || { fill: "#64748b", border: "#334155" };
+        return TEAM_COLORS[normalizeTeam(team)] || { fill: "#64748b", border: "#334155" };
     }
 
     function perceivedBrightness(hex) {
@@ -334,9 +342,7 @@
     let liveMatchesState = [];
     let lastStateHash = "";
 
-    // Extrae la probabilidad de victoria de forma robusta desde la estructura de datos de ESPN
     function extractHomeWinProbability(comp, status, homeScore, awayScore) {
-        // Para juegos FINALIZADOS, la probabilidad de victoria es la probabilidad real de cierre o se congela según el resultado
         if (status === "FINAL") {
             if (comp.situation && comp.situation.lastPlay && comp.situation.lastPlay.probability) {
                 return (comp.situation.lastPlay.probability.homeWinPercentage || (homeScore > awayScore ? 100 : 0)) / 100;
@@ -344,7 +350,6 @@
             return homeScore > awayScore ? 0.99 : (homeScore < awayScore ? 0.01 : 0.5);
         }
 
-        // Intento 1: Situación en vivo - probabilidad del último jugada
         if (comp.situation && comp.situation.lastPlay) {
             const prob = comp.situation.lastPlay.probability || comp.situation.lastPlay.winProbability;
             if (prob) {
@@ -355,13 +360,11 @@
             }
         }
 
-        // Intento 2: Probabilidad directa en la competición
         if (comp.probabilities && comp.probabilities.length > 0) {
             const homeProb = comp.probabilities[0].homeWinPercentage;
             if (homeProb !== undefined) return homeProb > 1 ? homeProb / 100 : homeProb;
         }
 
-        // Intento 3: Apuestas / Odds pre-partido
         if (comp.odds && comp.odds.length > 0) {
             const odds = comp.odds[0];
             if (odds.homeTeamOdds && odds.homeTeamOdds.winPercentage) {
@@ -369,15 +372,13 @@
             }
         }
 
-        // Intento 4: Cálculo dinámico basado en la diferencia de puntos en vivo
         if (status === "LIVE") {
             const diff = homeScore - awayScore;
-            // Sigmoide simple para proyectar probabilidad realista si ESPN no envía el dato de probabilidad
             const estimated = 1 / (1 + Math.exp(-0.25 * diff));
             return Math.min(Math.max(estimated, 0.05), 0.95);
         }
 
-        return 0.50; // Fallback para PENDING
+        return 0.50;
     }
 
     async function fetchESPNLiveScores(forceRefresh = false) {
@@ -392,20 +393,22 @@
 
                 const event = events.find(e => {
                     const competitors = e.competitions[0].competitors;
-                    const teams = competitors.map(c => c.team.abbreviation);
+                    const teams = competitors.map(c => normalizeTeam(c.team.abbreviation));
                     return teams.includes(awayTeam) && teams.includes(homeTeam);
                 });
 
                 if (event) {
                     const comp = event.competitions[0];
-                    const homeComp = comp.competitors.find(c => c.team.abbreviation === homeTeam);
-                    const awayComp = comp.competitors.find(c => c.team.abbreviation === awayTeam);
-                    const statusType = event.status.type.name;
+                    const homeComp = comp.competitors.find(c => teamMatch(c.team.abbreviation, homeTeam));
+                    const awayComp = comp.competitors.find(c => teamMatch(c.team.abbreviation, awayTeam));
+                    
+                    const state = event.status?.type?.state;
+                    const statusName = event.status?.type?.name || "";
 
                     let status = "PENDING";
-                    if (statusType === "STATUS_FINAL" || statusType === "STATUS_FULL_TIME") {
+                    if (state === "post" || statusName.includes("FINAL") || statusName.includes("FULL_TIME")) {
                         status = "FINAL";
-                    } else if (statusType === "STATUS_IN_PROGRESS" || statusType === "STATUS_HALFTIME") {
+                    } else if (state === "in" || statusName.includes("IN_PROGRESS") || statusName.includes("HALFTIME")) {
                         status = "LIVE";
                     }
 
@@ -474,7 +477,6 @@
             const awayC = teamColors(m.away);
             const homeC = teamColors(m.home);
             
-            // Garantiza proporciones visuales realistas en la barra inferior de probabilidad
             const homePct = (m.homeWinProb * 100).toFixed(1);
             const awayPct = (100 - homePct).toFixed(1);
 
@@ -505,7 +507,7 @@
     function calculateAndRenderLeaderboard() {
         const playerScores = PLAYERS.map((player) => {
             let weekCurrent = 0;   // Aciertos reales actuales
-            let weekExpected = 0;  // Puntos esperados / proyectados
+            let weekExpected = 0;  // Puntos proyectados
 
             liveMatchesState.forEach(m => {
                 const pickedTeam = player.picks[m.id];
@@ -515,16 +517,16 @@
                 const isAwayWinner = m.awayScore > m.homeScore;
 
                 if (m.status === 'FINAL') {
-                    const won = (isHomeWinner && pickedTeam === m.home) || (isAwayWinner && pickedTeam === m.away);
+                    const won = (isHomeWinner && teamMatch(pickedTeam, m.home)) || (isAwayWinner && teamMatch(pickedTeam, m.away));
                     if (won) weekCurrent++;
                     weekExpected += won ? 1 : 0;
                 } else {
                     if (m.status === 'LIVE' && (isHomeWinner || isAwayWinner)) {
-                        if ((isHomeWinner && pickedTeam === m.home) || (isAwayWinner && pickedTeam === m.away)) {
+                        if ((isHomeWinner && teamMatch(pickedTeam, m.home)) || (isAwayWinner && teamMatch(pickedTeam, m.away))) {
                             weekCurrent++;
                         }
                     }
-                    const pWin = (pickedTeam === m.home) ? m.homeWinProb : (1 - m.homeWinProb);
+                    const pWin = teamMatch(pickedTeam, m.home) ? m.homeWinProb : (1 - m.homeWinProb);
                     weekExpected += pWin;
                 }
             });
@@ -532,15 +534,12 @@
             return {
                 name: player.name,
                 rawMNF: player.rawMNF,
+                mnfTotal: player.mnfTotal,
                 weekCurrent: weekCurrent,
                 weekExpected: weekExpected
             };
         });
 
-        // Criterio de Ordenamiento:
-        // 1. Aciertos Reales Actuales (weekCurrent)
-        // 2. Puntos Proyectados (weekExpected)
-        // 3. MNF Tiebreaker Total
         playerScores.sort((a, b) => 
             b.weekCurrent - a.weekCurrent || 
             b.weekExpected - a.weekExpected || 
@@ -557,7 +556,7 @@
                 <td class="player-name">${ps.name}</td>
                 <td><strong style="color: #cbd5e1;">${ps.rawMNF}</strong></td>
                 <td><span class="badge-score">${ps.weekCurrent}</span></td>
-                <td><span class="badge-projected">${ps.weekExpected.toFixed(1)}</span></td>
+                <td><span class="badge-projected">${Math.round(ps.weekExpected)}</span></td>
             `;
             tbody.appendChild(tr);
         });
