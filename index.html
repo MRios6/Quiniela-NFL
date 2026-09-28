@@ -223,6 +223,16 @@
             border-radius: 10px;
             font-size: 0.9rem;
         }
+
+        .badge-winprob {
+            display: inline-block;
+            background-color: var(--win-color);
+            color: #0f172a;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -251,6 +261,7 @@
                         <th>MNF Tiebreaker</th>
                         <th>Puntos</th>
                         <th>Puntos Proyectados</th>
+                        <th>Win Prob %</th>
                     </tr>
                 </thead>
                 <tbody id="leaderboard-body"></tbody>
@@ -340,6 +351,7 @@
     }
 
     let liveMatchesState = [];
+    let mnfProjectedTotalPoints = 44.5;
     let lastStateHash = "";
 
     function extractHomeWinProbability(comp, status, homeScore, awayScore) {
@@ -416,6 +428,14 @@
                     const awayScore = parseInt(awayComp.score) || 0;
                     const homeWinProb = extractHomeWinProbability(comp, status, homeScore, awayScore);
 
+                    if (index + 1 === MNF_MATCH_ID) {
+                        if (status === "LIVE" || status === "FINAL") {
+                            mnfProjectedTotalPoints = homeScore + awayScore;
+                        } else if (comp.odds && comp.odds.length > 0 && comp.odds[0].overUnder) {
+                            mnfProjectedTotalPoints = parseFloat(comp.odds[0].overUnder);
+                        }
+                    }
+
                     return {
                         id: index + 1,
                         away: pair[0],
@@ -444,7 +464,7 @@
                 }
             });
 
-            const currentStateHash = JSON.stringify(liveMatchesState.map(m => `${m.id}-${m.status}-${m.awayScore}-${m.homeScore}-${m.homeWinProb.toFixed(2)}`));
+            const currentStateHash = JSON.stringify(liveMatchesState.map(m => `${m.id}-${m.status}-${m.awayScore}-${m.homeScore}-${m.homeWinProb.toFixed(2)}`)) + `-${mnfProjectedTotalPoints}`;
 
             if (currentStateHash !== lastStateHash || forceRefresh) {
                 lastStateHash = currentStateHash;
@@ -504,8 +524,108 @@
         });
     }
 
+    function runMonteCarloSimulations() {
+        const numSimulations = 10000;
+        const winCounts = new Array(PLAYERS.length).fill(0);
+        const stdDevMNF = 10.5;
+
+        function randomNormal(mean, std) {
+            let u1 = Math.random();
+            let u2 = Math.random();
+            while (u1 === 0) u1 = Math.random();
+            let z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+            return mean + z0 * std;
+        }
+
+        for (let sim = 0; sim < numSimulations; sim++) {
+            const simWinners = {};
+            liveMatchesState.forEach(m => {
+                if (m.status === 'FINAL') {
+                    simWinners[m.id] = (m.homeScore > m.awayScore) ? m.home : m.away;
+                } else {
+                    simWinners[m.id] = (Math.random() < m.homeWinProb) ? m.home : m.away;
+                }
+            });
+
+            const simulatedMNFTotal = randomNormal(mnfProjectedTotalPoints, stdDevMNF);
+
+            let maxPoints = -1;
+            const simScores = PLAYERS.map(player => {
+                let pts = 0;
+                liveMatchesState.forEach(m => {
+                    if (teamMatch(player.picks[m.id], simWinners[m.id])) pts++;
+                });
+                if (pts > maxPoints) maxPoints = pts;
+                return pts;
+            });
+
+            let tiedIndices = [];
+            simScores.forEach((score, idx) => {
+                if (score === maxPoints) tiedIndices.push(idx);
+            });
+
+            if (tiedIndices.length === 1) {
+                winCounts[tiedIndices[0]] += 1;
+            } else {
+                let minDiff = Infinity;
+                let tieWinners = [];
+
+                tiedIndices.forEach(idx => {
+                    const diff = Math.abs(PLAYERS[idx].mnfTotal - simulatedMNFTotal);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        tieWinners = [idx];
+                    } else if (diff === minDiff) {
+                        tieWinners.push(idx);
+                    }
+                });
+
+                tieWinners.forEach(wIdx => {
+                    winCounts[wIdx] += (1 / tieWinners.length);
+                });
+            }
+        }
+
+        return winCounts.map(count => (count / numSimulations) * 100);
+    }
+
+    // Método de los Mayores Residuos (Hare-Niemeyer) para garantizar suma exacta de 100%
+    function roundPercentagesTo100(numbers) {
+        const floatNumbers = numbers.map(n => parseFloat(n) || 0);
+        const sum = floatNumbers.reduce((acc, curr) => acc + curr, 0);
+
+        if (sum === 0) return floatNumbers.map(() => 0);
+
+        const normalized = floatNumbers.map(n => (n / sum) * 100);
+
+        const items = normalized.map((num, index) => {
+            const floorVal = Math.floor(num);
+            return {
+                index: index,
+                floorVal: floorVal,
+                remainder: num - floorVal
+            };
+        });
+
+        const currentSum = items.reduce((acc, item) => acc + item.floorVal, 0);
+        let remainderToDistribute = 100 - currentSum;
+
+        items.sort((a, b) => b.remainder - a.remainder);
+
+        for (let i = 0; i < remainderToDistribute; i++) {
+            items[i].floorVal += 1;
+        }
+
+        items.sort((a, b) => a.index - b.index);
+
+        return items.map(item => item.floorVal);
+    }
+
     function calculateAndRenderLeaderboard() {
-        const playerScores = PLAYERS.map((player) => {
+        const rawWinProbs = runMonteCarloSimulations();
+        const roundedWinProbs = roundPercentagesTo100(rawWinProbs);
+
+        const playerScores = PLAYERS.map((player, idx) => {
             let weekCurrent = 0;   // Aciertos reales actuales
             let weekExpected = 0;  // Puntos proyectados
 
@@ -536,14 +656,17 @@
                 rawMNF: player.rawMNF,
                 mnfTotal: player.mnfTotal,
                 weekCurrent: weekCurrent,
-                weekExpected: weekExpected
+                weekExpected: weekExpected,
+                rawWinProb: rawWinProbs[idx],
+                winProb: roundedWinProbs[idx]
             };
         });
 
-        playerScores.sort((a, b) => 
-            b.weekCurrent - a.weekCurrent || 
-            b.weekExpected - a.weekExpected || 
-            a.mnfTotal - b.mnfTotal
+        // Orden principal: probabilidad real (sin redondear) de ganar la quiniela.
+        playerScores.sort((a, b) =>
+            b.rawWinProb - a.rawWinProb ||
+            b.weekExpected - a.weekExpected ||
+            b.weekCurrent - a.weekCurrent
         );
 
         const tbody = document.getElementById('leaderboard-body');
@@ -557,6 +680,7 @@
                 <td><strong style="color: #cbd5e1;">${ps.rawMNF}</strong></td>
                 <td><span class="badge-score">${ps.weekCurrent}</span></td>
                 <td><span class="badge-projected">${Math.round(ps.weekExpected)}</span></td>
+                <td><span class="badge-winprob">${ps.winProb}%</span></td>
             `;
             tbody.appendChild(tr);
         });
