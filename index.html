@@ -98,7 +98,37 @@
             grid-template-columns: 1fr auto 1fr;
             align-items: center;
             gap: 10px;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
         }
+
+        .match-card:hover {
+            background-color: #16213a;
+        }
+
+        .picks-panel {
+            display: none;
+            grid-column: 1 / -1;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 4px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
+            font-size: 0.78rem;
+            line-height: 1.4;
+            color: #cbd5e1;
+        }
+
+        .picks-panel.open {
+            display: grid;
+        }
+
+        .picks-col {
+            min-width: 0;
+        }
+
+        .picks-col.away { text-align: left; }
+        .picks-col.home { text-align: right; }
 
         .prob-bar {
             grid-column: 1 / -1;
@@ -353,6 +383,48 @@
     let liveMatchesState = [];
     let mnfProjectedTotalPoints = 44.5;
     let lastStateHash = "";
+    const expandedMatches = new Set();
+
+    // Agrupa los picks de todos los jugadores para un partido y decide cómo mostrarlos:
+    // - Si todos eligieron el mismo equipo: "Todos los jugadores" bajo ese equipo.
+    // - Si 5 o menos eligieron un equipo: se listan esos nombres, y el otro equipo
+    //   muestra "Todos los demás".
+    // - En cualquier otro caso (ambos lados con más de 5): se listan todos los nombres.
+    function getPicksDisplay(matchId, homeTeam, awayTeam) {
+        const homeNames = [];
+        const awayNames = [];
+
+        PLAYERS.forEach(p => {
+            const pick = p.picks[matchId];
+            if (teamMatch(pick, homeTeam)) homeNames.push(p.name);
+            else if (teamMatch(pick, awayTeam)) awayNames.push(p.name);
+        });
+
+        let awayText = '';
+        let homeText = '';
+        const minCount = Math.min(homeNames.length, awayNames.length);
+
+        if (minCount === 0) {
+            if (awayNames.length > 0) {
+                awayText = 'Todos los jugadores';
+            } else if (homeNames.length > 0) {
+                homeText = 'Todos los jugadores';
+            }
+        } else if (minCount <= 5) {
+            if (awayNames.length <= homeNames.length) {
+                awayText = awayNames.join(', ');
+                homeText = 'Todos los demás';
+            } else {
+                homeText = homeNames.join(', ');
+                awayText = 'Todos los demás';
+            }
+        } else {
+            awayText = awayNames.join(', ');
+            homeText = homeNames.join(', ');
+        }
+
+        return { awayText, homeText };
+    }
 
     function extractHomeWinProbability(comp, status, homeScore, awayScore) {
         if (status === "FINAL") {
@@ -500,6 +572,9 @@
             const homePct = (m.homeWinProb * 100).toFixed(1);
             const awayPct = (100 - homePct).toFixed(1);
 
+            const isOpen = expandedMatches.has(m.id);
+            const picks = getPicksDisplay(m.id, m.home, m.away);
+
             div.innerHTML = `
                 <div class="team away">
                     <img class="team-logo" src="${m.awayLogo}" alt="${m.away}">
@@ -519,7 +594,21 @@
                     <div class="prob-segment away" style="width:${awayPct}%; background:${awayC.fill}; border-bottom:3px solid ${accentBorder(awayC.border)};" title="${m.away}: ${awayPct}%"></div>
                     <div class="prob-segment home" style="width:${homePct}%; background:${homeC.fill}; border-bottom:3px solid ${accentBorder(homeC.border)};" title="${m.home}: ${homePct}%"></div>
                 </div>
+                <div class="picks-panel ${isOpen ? 'open' : ''}">
+                    <div class="picks-col away">${picks.awayText}</div>
+                    <div class="picks-col home">${picks.homeText}</div>
+                </div>
             `;
+
+            div.addEventListener('click', () => {
+                if (expandedMatches.has(m.id)) {
+                    expandedMatches.delete(m.id);
+                } else {
+                    expandedMatches.add(m.id);
+                }
+                renderMatches();
+            });
+
             container.appendChild(div);
         });
     }
