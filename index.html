@@ -743,7 +743,8 @@
 
         const playerScores = PLAYERS.map((player, idx) => {
             let weekCurrent = 0;   // Aciertos reales actuales (bajo la regla de la quiniela)
-            let weekExpected = 0;  // Puntos proyectados (suma de probabilidades)
+            let weekExpected = 0;  // Puntos proyectados: punto completo para quien pickeó
+                                    // al equipo con mayor win probability en este momento
 
             liveMatchesState.forEach(m => {
                 const pickedTeam = player.picks[m.id];
@@ -762,8 +763,14 @@
                             weekCurrent++;
                         }
                     }
-                    const pWin = teamMatch(pickedTeam, m.home) ? m.homeWinProb : (1 - m.homeWinProb);
-                    weekExpected += pWin;
+                    // Punto completo (no fraccional) para quien pickeó al favorito actual.
+                    // Si es un empate exacto de 50/50 (sin datos reales de momios o modelo
+                    // en vivo), no se le da ventaja a ningún lado para no sesgar el resultado.
+                    if (m.homeWinProb > 0.5) {
+                        if (teamMatch(pickedTeam, m.home)) weekExpected += 1;
+                    } else if (m.homeWinProb < 0.5) {
+                        if (teamMatch(pickedTeam, m.away)) weekExpected += 1;
+                    }
                 }
             });
 
