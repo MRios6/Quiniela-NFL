@@ -202,6 +202,30 @@
             color: #a0aec0;
         }
 
+        .situation-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 2px;
+            font-size: 0.72rem;
+            color: #fbbf24;
+            font-weight: bold;
+        }
+
+        .situation-bar .possession-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+
+        .situation-bar.redzone {
+            color: #f87171;
+        }
+
         /* Tabla de Posiciones */
         .leaderboard-table {
             width: 100%;
@@ -577,6 +601,31 @@
                         ? (formatPacificTime(event.date) || event.status.type.shortDetail || "")
                         : (event.status.type.shortDetail || "");
 
+                    // Datos de la jugada en curso (posesión, down y distancia), solo
+                    // disponibles mientras el partido está en vivo.
+                    let situation = null;
+                    if (status === 'LIVE' && comp.situation) {
+                        const sit = comp.situation;
+                        let possessionTeam = null;
+                        if (sit.possession) {
+                            const possessionId = String(sit.possession);
+                            if (possessionId === String(homeComp.id) || possessionId === String(homeComp.team?.id)) {
+                                possessionTeam = pair[1]; // local
+                            } else if (possessionId === String(awayComp.id) || possessionId === String(awayComp.team?.id)) {
+                                possessionTeam = pair[0]; // visitante
+                            }
+                        }
+                        const downDistanceText = sit.shortDownDistanceText || sit.downDistanceText || null;
+                        if (possessionTeam || downDistanceText) {
+                            situation = {
+                                possessionTeam: possessionTeam,
+                                downDistanceText: downDistanceText,
+                                possessionText: sit.possessionText || null,
+                                isRedZone: !!sit.isRedZone
+                            };
+                        }
+                    }
+
                     return {
                         id: index + 1,
                         away: pair[0],
@@ -587,7 +636,8 @@
                         homeLogo: homeComp.team.logo,
                         status: status,
                         detail: detail,
-                        homeWinProb: homeWinProb
+                        homeWinProb: homeWinProb,
+                        situation: situation
                     };
                 } else {
                     return {
@@ -600,7 +650,8 @@
                         homeLogo: `https://a.espncdn.com/i/teamlogos/nfl/500/${homeTeam}.png`,
                         status: "PENDING",
                         detail: "No Iniciado",
-                        homeWinProb: 0.5
+                        homeWinProb: 0.5,
+                        situation: null
                     };
                 }
             });
@@ -644,6 +695,18 @@
             const isOpen = expandedMatches.has(m.id);
             const picks = getPicksDisplay(m.id, m.home, m.away);
 
+            let situationHtml = '';
+            if (m.status === 'LIVE' && m.situation && m.situation.downDistanceText) {
+                const possessionLabel = m.situation.possessionTeam ? `${m.situation.possessionTeam} ` : '';
+                const fieldPos = m.situation.possessionText ? ` · ${m.situation.possessionText}` : '';
+                const rzClass = m.situation.isRedZone ? ' redzone' : '';
+                situationHtml = `
+                <div class="situation-bar${rzClass}">
+                    <span class="possession-dot"></span>
+                    <span>${possessionLabel}${m.situation.downDistanceText}${fieldPos}</span>
+                </div>`;
+            }
+
             div.innerHTML = `
                 <div class="team away">
                     <img class="team-logo" src="${m.awayLogo}" alt="${m.away}">
@@ -663,6 +726,7 @@
                     <div class="prob-segment away" style="width:${awayPct}%; background:${awayC.fill}; border-bottom:3px solid ${accentBorder(awayC.border)};" title="${m.away}: ${awayPct}%"></div>
                     <div class="prob-segment home" style="width:${homePct}%; background:${homeC.fill}; border-bottom:3px solid ${accentBorder(homeC.border)};" title="${m.home}: ${homePct}%"></div>
                 </div>
+                ${situationHtml}
                 <div class="picks-panel ${isOpen ? 'open' : ''}">
                     <div class="picks-col away">${picks.awayText}</div>
                     <div class="picks-col home">${picks.homeText}</div>
