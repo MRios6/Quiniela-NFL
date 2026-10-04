@@ -1,4 +1,3 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -431,6 +430,49 @@
         return { awayText, homeText };
     }
 
+    // Convierte un momio americano (ej. "+164", "-198", o numérico) a probabilidad implícita (0-1).
+    function moneylineToProb(ml) {
+        if (ml === undefined || ml === null) return null;
+        const n = typeof ml === 'string' ? parseFloat(ml.replace(/[^0-9.+-]/g, '')) : ml;
+        if (isNaN(n) || n === 0) return null;
+        if (n < 0) return (-n) / (-n + 100);
+        return 100 / (n + 100);
+    }
+
+    // Estima probabilidad a partir del spread (puntos de hándicap) cuando no hay moneyline.
+    // Aproximación razonable: cada punto de spread mueve la probabilidad de forma logística.
+    function spreadToProb(spreadMagnitude, favoriteIsHome) {
+        if (spreadMagnitude === undefined || spreadMagnitude === null || isNaN(spreadMagnitude)) return null;
+        const favProb = 1 / (1 + Math.exp(-0.15 * Math.abs(spreadMagnitude)));
+        return favoriteIsHome ? favProb : (1 - favProb);
+    }
+
+    // Lee los momios reales del partido (moneyline con de-vig, o spread como respaldo)
+    // y regresa la probabilidad de que el equipo local gane. Regresa null si no hay datos.
+    function probFromOdds(comp) {
+        if (!comp.odds || comp.odds.length === 0) return null;
+        const odds = comp.odds[0];
+
+        if (odds.moneyline && odds.moneyline.home && odds.moneyline.away) {
+            const homeRaw = odds.moneyline.home.current?.odds ?? odds.moneyline.home.close?.odds ?? odds.moneyline.home.open?.odds;
+            const awayRaw = odds.moneyline.away.current?.odds ?? odds.moneyline.away.close?.odds ?? odds.moneyline.away.open?.odds;
+            const pHome = moneylineToProb(homeRaw);
+            const pAway = moneylineToProb(awayRaw);
+            if (pHome !== null && pAway !== null) {
+                const total = pHome + pAway;
+                if (total > 0) return pHome / total; // quita el margen de la casa (de-vig)
+            }
+        }
+
+        if (typeof odds.spread === 'number' && odds.homeTeamOdds) {
+            const favoriteIsHome = !!odds.homeTeamOdds.favorite;
+            const p = spreadToProb(odds.spread, favoriteIsHome);
+            if (p !== null) return p;
+        }
+
+        return null;
+    }
+
     function extractHomeWinProbability(comp, status, homeScore, awayScore) {
         if (status === "FINAL") {
             if (comp.situation && comp.situation.lastPlay && comp.situation.lastPlay.probability) {
@@ -439,7 +481,8 @@
             return homeScore > awayScore ? 0.99 : (homeScore < awayScore ? 0.01 : 0.5);
         }
 
-        if (comp.situation && comp.situation.lastPlay) {
+        // En vivo: preferir el modelo de win probability de ESPN basado en la jugada actual.
+        if (status === "LIVE" && comp.situation && comp.situation.lastPlay) {
             const prob = comp.situation.lastPlay.probability || comp.situation.lastPlay.winProbability;
             if (prob) {
                 const homePct = prob.homeWinPercentage !== undefined ? prob.homeWinPercentage : prob;
@@ -454,13 +497,12 @@
             if (homeProb !== undefined) return homeProb > 1 ? homeProb / 100 : homeProb;
         }
 
-        if (comp.odds && comp.odds.length > 0) {
-            const odds = comp.odds[0];
-            if (odds.homeTeamOdds && odds.homeTeamOdds.winPercentage) {
-                return odds.homeTeamOdds.winPercentage / 100;
-            }
-        }
+        // Pendiente o en vivo sin modelo de jugada: usar los momios reales (moneyline/spread).
+        const oddsProb = probFromOdds(comp);
+        if (oddsProb !== null) return oddsProb;
 
+        // Último recurso si el partido ya está en vivo y no hay ningún dato de momios:
+        // estimar a partir de la diferencia de marcador.
         if (status === "LIVE") {
             const diff = homeScore - awayScore;
             const estimated = 1 / (1 + Math.exp(-0.25 * diff));
@@ -814,5 +856,3 @@
 
 </body>
 </html>
-
-</body></html>
