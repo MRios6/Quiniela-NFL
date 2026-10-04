@@ -827,11 +827,12 @@
             };
         });
 
-        // Orden principal: probabilidad real (sin redondear) de ganar la quiniela.
+        // Orden principal: Puntos actuales (aciertos reales) de mayor a menor.
+        // Desempates: puntos proyectados y luego la probabilidad real de ganar.
         playerScores.sort((a, b) =>
-            b.rawWinProb - a.rawWinProb ||
+            b.weekCurrent - a.weekCurrent ||
             b.weekExpected - a.weekExpected ||
-            b.weekCurrent - a.weekCurrent
+            b.rawWinProb - a.rawWinProb
         );
 
         const tbody = document.getElementById('leaderboard-body');
