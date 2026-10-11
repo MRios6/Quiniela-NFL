@@ -202,6 +202,35 @@
             color: #a0aec0;
         }
 
+        .situation-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 2px;
+            font-size: 0.72rem;
+            color: #e2e8f0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        .situation-bar.redzone {
+            background: rgba(248, 113, 113, 0.12);
+            border-color: rgba(248, 113, 113, 0.4);
+            color: #fecaca;
+        }
+
+        .possession-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--live-color);
+            flex-shrink: 0;
+        }
+
         /* Tabla de Posiciones */
         .leaderboard-table {
             width: 100%;
@@ -430,6 +459,48 @@
         return { awayText, homeText };
     }
 
+    // Convierte un momio americano (ej. "+164", "-198", o numérico) a probabilidad implícita (0-1).
+    function moneylineToProb(ml) {
+        if (ml === undefined || ml === null) return null;
+        const n = typeof ml === 'string' ? parseFloat(ml.replace(/[^0-9.+-]/g, '')) : ml;
+        if (isNaN(n) || n === 0) return null;
+        if (n < 0) return (-n) / (-n + 100);
+        return 100 / (n + 100);
+    }
+
+    // Estima probabilidad a partir del spread (puntos de hándicap) cuando no hay moneyline.
+    function spreadToProb(spreadMagnitude, favoriteIsHome) {
+        if (spreadMagnitude === undefined || spreadMagnitude === null || isNaN(spreadMagnitude)) return null;
+        const favProb = 1 / (1 + Math.exp(-0.15 * Math.abs(spreadMagnitude)));
+        return favoriteIsHome ? favProb : (1 - favProb);
+    }
+
+    // Lee los momios reales del partido (moneyline con de-vig, o spread como respaldo)
+    // y regresa la probabilidad de que el equipo local gane. Regresa null si no hay datos.
+    function probFromOdds(comp) {
+        if (!comp.odds || comp.odds.length === 0) return null;
+        const odds = comp.odds[0];
+
+        if (odds.moneyline && odds.moneyline.home && odds.moneyline.away) {
+            const homeRaw = odds.moneyline.home.current?.odds ?? odds.moneyline.home.close?.odds ?? odds.moneyline.home.open?.odds;
+            const awayRaw = odds.moneyline.away.current?.odds ?? odds.moneyline.away.close?.odds ?? odds.moneyline.away.open?.odds;
+            const pHome = moneylineToProb(homeRaw);
+            const pAway = moneylineToProb(awayRaw);
+            if (pHome !== null && pAway !== null) {
+                const total = pHome + pAway;
+                if (total > 0) return pHome / total; // quita el margen de la casa (de-vig)
+            }
+        }
+
+        if (typeof odds.spread === 'number' && odds.homeTeamOdds) {
+            const favoriteIsHome = !!odds.homeTeamOdds.favorite;
+            const p = spreadToProb(odds.spread, favoriteIsHome);
+            if (p !== null) return p;
+        }
+
+        return null;
+    }
+
     function extractHomeWinProbability(comp, status, homeScore, awayScore) {
         if (status === "FINAL") {
             if (comp.situation && comp.situation.lastPlay && comp.situation.lastPlay.probability) {
@@ -438,7 +509,8 @@
             return homeScore > awayScore ? 0.99 : (homeScore < awayScore ? 0.01 : 0.5);
         }
 
-        if (comp.situation && comp.situation.lastPlay) {
+        // En vivo: preferir el modelo de win probability de ESPN basado en la jugada actual.
+        if (status === "LIVE" && comp.situation && comp.situation.lastPlay) {
             const prob = comp.situation.lastPlay.probability || comp.situation.lastPlay.winProbability;
             if (prob) {
                 const homePct = prob.homeWinPercentage !== undefined ? prob.homeWinPercentage : prob;
@@ -453,13 +525,12 @@
             if (homeProb !== undefined) return homeProb > 1 ? homeProb / 100 : homeProb;
         }
 
-        if (comp.odds && comp.odds.length > 0) {
-            const odds = comp.odds[0];
-            if (odds.homeTeamOdds && odds.homeTeamOdds.winPercentage) {
-                return odds.homeTeamOdds.winPercentage / 100;
-            }
-        }
+        // Pendiente o en vivo sin modelo de jugada: usar los momios reales (moneyline/spread).
+        const oddsProb = probFromOdds(comp);
+        if (oddsProb !== null) return oddsProb;
 
+        // Último recurso si el partido ya está en vivo y no hay ningún dato de momios:
+        // estimar a partir de la diferencia de marcador.
         if (status === "LIVE") {
             const diff = homeScore - awayScore;
             const estimated = 1 / (1 + Math.exp(-0.25 * diff));
@@ -534,6 +605,31 @@
                         ? (formatPacificTime(event.date) || event.status.type.shortDetail || "")
                         : (event.status.type.shortDetail || "");
 
+                    // Datos de la jugada en curso (posesión, down y distancia), solo
+                    // disponibles mientras el partido está en vivo.
+                    let situation = null;
+                    if (status === 'LIVE' && comp.situation) {
+                        const sit = comp.situation;
+                        let possessionTeam = null;
+                        if (sit.possession) {
+                            const possessionId = String(sit.possession);
+                            if (possessionId === String(homeComp.id) || possessionId === String(homeComp.team?.id)) {
+                                possessionTeam = pair[1]; // local
+                            } else if (possessionId === String(awayComp.id) || possessionId === String(awayComp.team?.id)) {
+                                possessionTeam = pair[0]; // visitante
+                            }
+                        }
+                        const downDistanceText = sit.shortDownDistanceText || sit.downDistanceText || null;
+                        if (possessionTeam || downDistanceText) {
+                            situation = {
+                                possessionTeam: possessionTeam,
+                                downDistanceText: downDistanceText,
+                                possessionText: sit.possessionText || null,
+                                isRedZone: !!sit.isRedZone
+                            };
+                        }
+                    }
+
                     return {
                         id: index + 1,
                         away: pair[0],
@@ -544,7 +640,8 @@
                         homeLogo: homeComp.team.logo,
                         status: status,
                         detail: detail,
-                        homeWinProb: homeWinProb
+                        homeWinProb: homeWinProb,
+                        situation: situation
                     };
                 } else {
                     return {
@@ -557,7 +654,8 @@
                         homeLogo: `https://a.espncdn.com/i/teamlogos/nfl/500/${homeTeam}.png`,
                         status: "PENDING",
                         detail: "No Iniciado",
-                        homeWinProb: 0.5
+                        homeWinProb: 0.5,
+                        situation: null
                     };
                 }
             });
@@ -601,6 +699,25 @@
             const isOpen = expandedMatches.has(m.id);
             const picks = getPicksDisplay(m.id, m.home, m.away);
 
+            let situationHtml = '';
+            if (m.situation && (m.situation.possessionTeam || m.situation.downDistanceText)) {
+                const sit = m.situation;
+                const parts = [];
+                if (sit.possessionTeam) {
+                    parts.push(`<span class="possession-dot"></span><strong>${sit.possessionTeam}</strong>`);
+                }
+                if (sit.downDistanceText) {
+                    parts.push(sit.downDistanceText);
+                }
+                if (sit.possessionText) {
+                    parts.push(sit.possessionText);
+                }
+                situationHtml = `
+                <div class="situation-bar ${sit.isRedZone ? 'redzone' : ''}">
+                    ${parts.join(' &bull; ')}
+                </div>`;
+            }
+
             div.innerHTML = `
                 <div class="team away">
                     <img class="team-logo" src="${m.awayLogo}" alt="${m.away}">
@@ -620,6 +737,7 @@
                     <div class="prob-segment away" style="width:${awayPct}%; background:${awayC.fill}; border-bottom:3px solid ${accentBorder(awayC.border)};" title="${m.away}: ${awayPct}%"></div>
                     <div class="prob-segment home" style="width:${homePct}%; background:${homeC.fill}; border-bottom:3px solid ${accentBorder(homeC.border)};" title="${m.home}: ${homePct}%"></div>
                 </div>
+                ${situationHtml}
                 <div class="picks-panel ${isOpen ? 'open' : ''}">
                     <div class="picks-col away">${picks.awayText}</div>
                     <div class="picks-col home">${picks.homeText}</div>
