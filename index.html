@@ -326,14 +326,16 @@
 <script>
     // Partidos de la Semana 4, temporada 2026 (formato [visitante, local]).
     // El partido #16 ATL @ NO es el Monday Night, usado como desempate (MNF Tiebreaker).
+    // Partidos de la Semana 5, temporada 2026 (formato [visitante, local]).
+    // CAR y KC descansan esta semana (bye). El partido #15 BUF @ LAR es el Monday Night,
+    // usado como desempate (MNF Tiebreaker).
     const MATCH_DEFINITIONS = [
-        ["PIT", "CLE"], ["IND", "WSH"], ["TEN", "BAL"], ["NE", "BUF"],
-        ["NYJ", "CHI"], ["JAX", "CIN"], ["DAL", "HOU"], ["ARI", "NYG"],
-        ["LAR", "PHI"], ["GB", "TB"], ["MIA", "MIN"], ["KC", "LV"],
-        ["LAC", "SEA"], ["DEN", "SF"], ["DET", "CAR"], ["ATL", "NO"]
+        ["TB", "DAL"], ["PHI", "JAX"], ["CIN", "MIA"], ["LV", "NE"], ["MIN", "NO"],
+        ["CLE", "NYJ"], ["IND", "PIT"], ["HOU", "TEN"], ["NYG", "WSH"], ["CHI", "GB"],
+        ["DEN", "LAC"], ["DET", "ARI"], ["SF", "SEA"], ["BAL", "ATL"], ["BUF", "LAR"]
     ];
 
-    const MNF_MATCH_ID = 16; // ATL @ NO, lunes - juego de desempate
+    const MNF_MATCH_ID = 15; // BUF @ LAR, lunes - juego de desempate
 
     // Helper para parsear "34-27" a la suma total de puntos (61)
     function parseScoreTiebreaker(rawScore) {
@@ -342,24 +344,24 @@
         return (parseInt(parts[0]) || 0) + (parseInt(parts[1]) || 0);
     }
 
-    // Jugadores con su acumulado previo a la Semana 4, marcador de desempate (MNF)
-    // y picks por partido (ids 1-16, según el orden de MATCH_DEFINITIONS).
+    // Jugadores con su acumulado previo a la Semana 5, marcador de desempate (MNF)
+    // y picks por partido (ids 1-15, según el orden de MATCH_DEFINITIONS).
     const PLAYERS = [
-        { name: "OSCAR", accumulated: 31, rawMNF: "23-31", mnfTotal: parseScoreTiebreaker("23-31"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "JAX", 7: "DAL", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } },
-        { name: "GARA", accumulated: 31, rawMNF: "21-27", mnfTotal: parseScoreTiebreaker("21-27"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "JAX", 7: "DAL", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } },
-        { name: "COCO", accumulated: 30, rawMNF: "17-30", mnfTotal: parseScoreTiebreaker("17-30"), picks: { 1: "PIT", 2: "WSH", 3: "BAL", 4: "BUF", 5: "CHI", 6: "CIN", 7: "HOU", 8: "NYG", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } },
-        { name: "CHARLIE", accumulated: 30, rawMNF: "27-24", mnfTotal: parseScoreTiebreaker("27-24"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "CIN", 7: "HOU", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "ATL" } },
-        { name: "PERUSI", accumulated: 30, rawMNF: "20-24", mnfTotal: parseScoreTiebreaker("20-24"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "CIN", 7: "DAL", 8: "NYG", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } },
-        { name: "MANUEL", accumulated: 30, rawMNF: "17-24", mnfTotal: parseScoreTiebreaker("17-24"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "JAX", 7: "DAL", 8: "ARI", 9: "PHI", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } },
-        { name: "GABRIEL", accumulated: 29, rawMNF: "24-31", mnfTotal: parseScoreTiebreaker("24-31"), picks: { 1: "PIT", 2: "WSH", 3: "BAL", 4: "BUF", 5: "CHI", 6: "CIN", 7: "HOU", 8: "NYG", 9: "LAR", 10: "GB", 11: "MIN", 12: "LV", 13: "SEA", 14: "SF", 15: "CAR", 16: "NO" } },
-        { name: "CONTRERAS", accumulated: 29, rawMNF: "17-24", mnfTotal: parseScoreTiebreaker("17-24"), picks: { 1: "CLE", 2: "WSH", 3: "BAL", 4: "BUF", 5: "NYJ", 6: "CIN", 7: "HOU", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "LV", 13: "SEA", 14: "SF", 15: "CAR", 16: "NO" } },
-        { name: "GUS", accumulated: 29, rawMNF: "21-24", mnfTotal: parseScoreTiebreaker("21-24"), picks: { 1: "CLE", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "JAX", 7: "DAL", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } },
-        { name: "JERRY", accumulated: 28, rawMNF: "10-17", mnfTotal: parseScoreTiebreaker("10-17"), picks: { 1: "CLE", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "CIN", 7: "HOU", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "LV", 13: "SEA", 14: "DEN", 15: "DET", 16: "NO" } },
-        { name: "PARRA", accumulated: 28, rawMNF: "23-20", mnfTotal: parseScoreTiebreaker("23-20"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "JAX", 7: "HOU", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "ATL" } },
-        { name: "GILBERTO", accumulated: 27, rawMNF: "23-24", mnfTotal: parseScoreTiebreaker("23-24"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "JAX", 7: "HOU", 8: "ARI", 9: "LAR", 10: "TB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } },
-        { name: "CARLOS", accumulated: 27, rawMNF: "17-27", mnfTotal: parseScoreTiebreaker("17-27"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "CIN", 7: "DAL", 8: "NYG", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "DEN", 15: "DET", 16: "NO" } },
-        { name: "ISMAEL", accumulated: 24, rawMNF: "24-21", mnfTotal: parseScoreTiebreaker("24-21"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "NYJ", 6: "JAX", 7: "DAL", 8: "ARI", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "ATL" } },
-        { name: "HARRY", accumulated: 24, rawMNF: "21-27", mnfTotal: parseScoreTiebreaker("21-27"), picks: { 1: "PIT", 2: "IND", 3: "BAL", 4: "BUF", 5: "CHI", 6: "CIN", 7: "DAL", 8: "NYG", 9: "LAR", 10: "GB", 11: "MIN", 12: "KC", 13: "SEA", 14: "SF", 15: "DET", 16: "NO" } }
+        { name: "OSCAR", accumulated: 42, rawMNF: "33-26", mnfTotal: parseScoreTiebreaker("33-26"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "LV", 5: "MIN", 6: "CLE", 7: "IND", 8: "HOU", 9: "NYG", 10: "CHI", 11: "DEN", 12: "DET", 13: "SF", 14: "BAL", 15: "BUF" } },
+        { name: "GARA", accumulated: 42, rawMNF: "28-31", mnfTotal: parseScoreTiebreaker("28-31"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "CLE", 7: "IND", 8: "HOU", 9: "WSH", 10: "CHI", 11: "DEN", 12: "DET", 13: "SEA", 14: "ATL", 15: "LAR" } },
+        { name: "GUS", accumulated: 41, rawMNF: "34-31", mnfTotal: parseScoreTiebreaker("34-31"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "LV", 5: "MIN", 6: "CLE", 7: "IND", 8: "HOU", 9: "WSH", 10: "CHI", 11: "LAC", 12: "DET", 13: "SEA", 14: "ATL", 15: "BUF" } },
+        { name: "PERUSI", accumulated: 41, rawMNF: "24-27", mnfTotal: parseScoreTiebreaker("24-27"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "CLE", 7: "IND", 8: "HOU", 9: "NYG", 10: "CHI", 11: "DEN", 12: "DET", 13: "SEA", 14: "ATL", 15: "LAR" } },
+        { name: "CHARLIE", accumulated: 40, rawMNF: "28-31", mnfTotal: parseScoreTiebreaker("28-31"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "CLE", 7: "PIT", 8: "HOU", 9: "WSH", 10: "GB", 11: "DEN", 12: "DET", 13: "SEA", 14: "ATL", 15: "LAR" } },
+        { name: "MANUEL", accumulated: 40, rawMNF: "27-24", mnfTotal: parseScoreTiebreaker("27-24"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "CLE", 7: "IND", 8: "HOU", 9: "NYG", 10: "CHI", 11: "DEN", 12: "DET", 13: "SF", 14: "BAL", 15: "BUF" } },
+        { name: "COCO", accumulated: 39, rawMNF: "17-24", mnfTotal: parseScoreTiebreaker("17-24"), picks: { 1: "DAL", 2: "PHI", 3: "CIN", 4: "NE", 5: "MIN", 6: "NYJ", 7: "IND", 8: "HOU", 9: "WSH", 10: "CHI", 11: "LAC", 12: "DET", 13: "SEA", 14: "BAL", 15: "LAR" } },
+        { name: "PARRA", accumulated: 39, rawMNF: "34-31", mnfTotal: parseScoreTiebreaker("34-31"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "CLE", 7: "PIT", 8: "HOU", 9: "NYG", 10: "CHI", 11: "DEN", 12: "DET", 13: "SF", 14: "ATL", 15: "BUF" } },
+        { name: "GABRIEL", accumulated: 38, rawMNF: "31-34", mnfTotal: parseScoreTiebreaker("31-34"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "CLE", 7: "PIT", 8: "HOU", 9: "NYG", 10: "CHI", 11: "DEN", 12: "DET", 13: "SEA", 14: "BAL", 15: "LAR" } },
+        { name: "CARLOS", accumulated: 37, rawMNF: "24-21", mnfTotal: parseScoreTiebreaker("24-21"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "CLE", 7: "PIT", 8: "HOU", 9: "NYG", 10: "CHI", 11: "DEN", 12: "DET", 13: "SEA", 14: "ATL", 15: "BUF" } },
+        { name: "CONTRERAS", accumulated: 37, rawMNF: "26-33", mnfTotal: parseScoreTiebreaker("26-33"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "NO", 6: "CLE", 7: "PIT", 8: "HOU", 9: "WSH", 10: "CHI", 11: "DEN", 12: "DET", 13: "SF", 14: "BAL", 15: "LAR" } },
+        { name: "JERRY", accumulated: 36, rawMNF: "20-27", mnfTotal: parseScoreTiebreaker("20-27"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "NYJ", 7: "IND", 8: "TEN", 9: "WSH", 10: "CHI", 11: "DEN", 12: "DET", 13: "SF", 14: "ATL", 15: "LAR" } },
+        { name: "GILBERTO", accumulated: 36, rawMNF: "24-31", mnfTotal: parseScoreTiebreaker("24-31"), picks: { 1: "DAL", 2: "JAX", 3: "MIA", 4: "NE", 5: "MIN", 6: "NYJ", 7: "PIT", 8: "HOU", 9: "WSH", 10: "CHI", 11: "DEN", 12: "DET", 13: "SF", 14: "ATL", 15: "LAR" } },
+        { name: "ISMAEL", accumulated: 35, rawMNF: "24-19", mnfTotal: parseScoreTiebreaker("24-19"), picks: { 1: "DAL", 2: "JAX", 3: "CIN", 4: "NE", 5: "MIN", 6: "NYJ", 7: "PIT", 8: "HOU", 9: "WSH", 10: "CHI", 11: "LAC", 12: "DET", 13: "SF", 14: "BAL", 15: "BUF" } },
+        { name: "HARRY", accumulated: 35, rawMNF: "27-21", mnfTotal: parseScoreTiebreaker("27-21"), picks: { 1: "DAL", 2: "PHI", 3: "CIN", 4: "NE", 5: "NO", 6: "NYJ", 7: "IND", 8: "HOU", 9: "WSH", 10: "CHI", 11: "DEN", 12: "DET", 13: "SF", 14: "BAL", 15: "BUF" } }
     ];
 
     function normalizeTeam(team) {
@@ -916,8 +918,4 @@
     }
 
     fetchESPNLiveScores();
-    setInterval(() => fetchESPNLiveScores(false), 30000);
-</script>
-
-</body>
-</html>
+    setInterval(() => fetchESP
